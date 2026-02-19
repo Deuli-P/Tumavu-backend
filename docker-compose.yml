@@ -1,0 +1,21 @@
+services:
+  postgres:
+    # Base PostgreSQL locale pour le developpement.
+    image: postgres:16-alpine
+    container_name: tumavu-postgres
+    restart: unless-stopped
+    environment:
+      # Parametres initiaux de la base.
+      POSTGRES_DB: tumavu
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      # Expose PostgreSQL sur localhost:5432.
+      - '5432:5432'
+    volumes:
+      # Persiste les donnees entre redemarrages.
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  # Volume nomme pour stocker les donnees postgres.
+  postgres_data:
