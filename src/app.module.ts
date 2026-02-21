@@ -3,8 +3,8 @@ import { ConfigModule } from '@nestjs/config';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { PrismaModule } from './prisma/prisma.module';
+import { DatabaseModule } from './database/database.module';
 import { UsersModule } from './users/users.module';
-import { AuthModule } from './auth/auth.module';
 
 // Module racine: il assemble la configuration, les modules, controllers et services.
 @Module({
@@ -14,12 +14,9 @@ import { AuthModule } from './auth/auth.module';
       isGlobal: true,
       envFilePath: '.env',
     }),
-    // Rend PrismaService disponible dans toute l'application.
     PrismaModule,
-    // Module contenant l'exemple d'endpoint users + Prisma.
     UsersModule,
-    // Module d'inscription: POST /api/auth/create-user
-    AuthModule,
+    DatabaseModule,
   ],
   controllers: [AppController],
   providers: [AppService],

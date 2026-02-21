@@ -1,8 +1,7 @@
 import { Module } from '@nestjs/common';
-import { UsersController } from './users.controller';
 import { UsersService } from './users.service';
+import { UsersController } from './users.controller';
 
-// Module NestJS qui regroupe la logique users.
 @Module({
   controllers: [UsersController],
   providers: [UsersService],
