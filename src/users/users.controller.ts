@@ -1,24 +1,24 @@
 import { Controller, Get, Post, Body, Patch, Param, Delete } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
-import { DatabaseService } from 'src/database/database.service';
+import { UsersService } from './users.service';
 
 @Controller('users')
 export class UsersController {
-  constructor(private readonly databaseService: DatabaseService) {}
+  constructor(private readonly usersService: UsersService) {}
 
   @Post()
   create(@Body() createUserDto: Prisma.UserCreateInput) {
-    return this.databaseService.user.create({ data: createUserDto });
+    return this.usersService.create(createUserDto);
   }
 
   @Get()
   findAll() {
-    return this.databaseService.user.findMany();
+    return this.usersService.findAll();
   }
 
   @Get(':id')
   findOne(@Param('id') id: string) {
-    return this.databaseService.user.findUnique({ where: { id: id } });
+    return this.usersService.findOne(id);
   }
 
   @Patch(':id')
@@ -26,11 +26,11 @@ export class UsersController {
     @Param('id') id: string, 
     @Body() updateUserDto: Prisma.UserUpdateInput
 ) {
-    return this.databaseService.user.update({ where: { id:id }, data: updateUserDto });
+    return this.usersService.update(id, updateUserDto);
   }
 
   @Delete(':id')
   remove(@Param('id') id: string) {
-    return this.databaseService.user.delete({ where: { id: id } });
+    return this.usersService.remove(id);
   }
 }

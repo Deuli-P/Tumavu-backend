@@ -25,4 +25,4 @@ export class UsersService {
   remove(id: string) {
     return this.databaseService.user.delete({ where: { id } });
   }
-}
+};

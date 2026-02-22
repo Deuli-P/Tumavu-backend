@@ -14,16 +14,21 @@ model User {
   deleted    Boolean  @default(false)
   updatedAt  DateTime @updatedAt
   photoPath  String?
-  job_id    Int?
 
-  auth       Auth?
-  jobs       Job[]    @relation("CreatorJobs")
-  companies  Company[] @relation("CompanyOwner")
+  auth           Auth?
 
-  jobs      Job     @relation(fields:[])
+  // Jobs créés
+  createdJobs    Job[]  @relation("CreatorJobs")
+
+  // Job occupé (1 seul)
+  jobId          Int?   @unique
+  job            Job?   @relation("EmployeeJob", fields: [jobId], references: [id])
+
+  companies      Company[] @relation("CompanyOwner")
 
   @@map("users")
 }
+
 
 model Auth {
   id              String   @id @default(uuid())
@@ -45,15 +50,19 @@ model Job {
   updatedAt   DateTime @updatedAt
   deleted     Boolean  @default(false)
 
+  // Créateur
   createdBy   String
-  companyId   Int
+  creator     User     @relation("CreatorJobs", fields: [createdBy], references: [id])
 
-  user        User     @relation("CreatorJobs", fields: [createdBy], references: [id])
+  // Employé (1 seul user max)
+  employee    User?    @relation("EmployeeJob")
+
+  companyId   Int
   company     Company  @relation(fields: [companyId], references: [id])
-  user        User     @relation("EmployJob)
 
   @@map("jobs")
 }
+
 
 model Company {
   id          Int      @id @default(autoincrement())
