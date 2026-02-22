@@ -5,6 +5,8 @@ import { AppService } from './app.service';
 import { PrismaModule } from './prisma/prisma.module';
 import { DatabaseModule } from './database/database.module';
 import { UsersModule } from './users/users.module';
+import { AccessModule } from './access/access.module';
+import { AuthModule } from './auth/auth.module';
 
 // Module racine: il assemble la configuration, les modules, controllers et services.
 @Module({
@@ -17,6 +19,8 @@ import { UsersModule } from './users/users.module';
     PrismaModule,
     UsersModule,
     DatabaseModule,
+    AccessModule,
+    AuthModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -13,6 +13,8 @@ model User {
   lastName   String?  @map("lastname")
   deleted    Boolean  @default(false)
   updatedAt  DateTime @updatedAt
+  roleId Int?
+  role   Role? @relation(fields: [roleId], references: [id])
   photoPath  String?
 
   auth           Auth?
@@ -22,7 +24,7 @@ model User {
 
   // Job occupé (1 seul)
   jobId          Int?   @unique
-  job            Job?   @relation("EmployeeJob", fields: [jobId], references: [id])
+  job Job? @relation("EmployeeJob", fields: [jobId], references: [id], onDelete: SetNull)
 
   companies      Company[] @relation("CompanyOwner")
 
@@ -86,8 +88,44 @@ model Address {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   deleted     Boolean  @default(false)
-
+  formatted_address String
+  street      String
+  city        String
+  country     String
+  zipCode     String
   companies   Company[]
 
   @@map("addresses")
+}
+
+
+model Role {
+  id          Int      @id @default(autoincrement())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  deleted     Boolean  @default(false)
+  parentId    Int?
+  label       String
+
+  parent      Role?    @relation("RoleHierarchy", fields: [parentId], references: [id])
+  children    Role[]   @relation("RoleHierarchy")
+
+  permissions Permission[]
+
+  users       User[]
+
+  @@map("roles")
+}
+
+model Permission {
+  id          Int      @id @default(autoincrement())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  deleted     Boolean  @default(false)
+  value       String   @unique
+  label       String
+
+  roles       Role[]
+
+  @@map("permissions")
 }

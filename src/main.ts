@@ -1,13 +1,15 @@
 import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { ConfigService } from '@nestjs/config';
+import { NestExpressApplication } from '@nestjs/platform-express';
+import { join } from 'path';
 import { AppModule } from './app.module';
 import { PrismaService } from './prisma/prisma.service';
 
 // Point d'entree de l'application NestJS.
 async function bootstrap(): Promise<void> {
   // Cree l'application a partir du module racine.
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
   const configService = app.get(ConfigService);
   const prismaService = app.get(PrismaService);
   // Lit PORT depuis .env, sinon fallback sur 3000.
@@ -15,6 +17,7 @@ async function bootstrap(): Promise<void> {
 
   // Tous les endpoints seront prefixes par /api.
   app.setGlobalPrefix('api');
+  app.useStaticAssets(join(process.cwd(), 'uploads'), { prefix: '/uploads/' });
   // Validation globale des DTO (utile des qu'on ajoute des routes avec body/query).
   app.useGlobalPipes(
     new ValidationPipe({
