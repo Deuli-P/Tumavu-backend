@@ -4,6 +4,14 @@ import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 import { PasswordService } from './password.service';
 import { TokenService } from './token.service';
+import { SupabaseStorageService } from '../storage/supabase-storage.service';
+
+type UploadedPhoto = {
+  buffer: Buffer;
+  mimetype: string;
+  originalname?: string;
+  size?: number;
+};
 
 export type AuthPayload = {
   token: string;
@@ -24,9 +32,10 @@ export class AuthService {
     private readonly databaseService: DatabaseService,
     private readonly passwordService: PasswordService,
     private readonly tokenService: TokenService,
+    private readonly storageService: SupabaseStorageService,
   ) {}
 
-  async register(dto: RegisterDto): Promise<AuthPayload> {
+  async register(dto: RegisterDto, file?: UploadedPhoto): Promise<AuthPayload> {
     const existing = await this.databaseService.auth.findFirst({
       where: { email: dto.email, deleted: false },
       select: { id: true },
@@ -45,16 +54,15 @@ export class AuthService {
       select: { id: true },
     });
 
-    const created = await this.databaseService.auth.create({
+   const created = await this.databaseService.auth.create({
       data: {
-        email: dto.email,
+        email: dto.email.toLowerCase().trim(),
         password: passwordHash,
         user: {
           create: {
-            firstName: dto.firstName,
-            lastName: dto.lastName,
-            photoPath: dto.photoPath ?? null,
-            roleId: defaultRole?.id ?? 1
+            firstName: dto.firstname,
+            lastName: dto.lastname,
+            roleId: defaultRole?.id,
           },
         },
       },
@@ -70,6 +78,33 @@ export class AuthService {
         },
       },
     });
+
+    let fullPath: string | undefined;
+
+    if (file && created.user) {
+      try {
+        const extension = file.mimetype.split('/')[1] || 'jpg';
+        const timestamp = Date.now();
+
+        const storagePath = `users/${created.user.id}/photo/photo_${timestamp}.${extension}`;
+
+        await this.storageService.uploadFile(storagePath, file.buffer, {
+          contentType: file.mimetype,
+          bucket: 'public',
+        });
+
+        fullPath = storagePath;
+
+        // Update user avec chemin photo
+        await this.databaseService.user.update({
+          where: { id: created.user.id },
+          data: { photoPath: fullPath },
+        });
+
+      } catch (error) {
+        console.error('Erreur upload photo:', error);
+      }
+}
 
     return this.buildAuthPayload(created, false);
   }

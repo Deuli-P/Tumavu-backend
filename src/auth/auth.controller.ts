@@ -16,10 +16,15 @@ import { RegisterDto } from './dto/register.dto';
 import { AuthenticatedRequestUser } from './auth-user.interface';
 import { AuthenticatedGuard } from './guards/authenticated.guard';
 import { GuestOnlyGuard } from './guards/guest-only.guard';
+import { memoryStorage } from 'multer';
 
-const PROFILE_PHOTOS_DIR = 'uploads/profile-photos';
 const MAX_PHOTO_SIZE_BYTES = 5 * 1024 * 1024;
-type UploadedPhoto = { filename: string };
+type UploadedPhoto = {
+  buffer: Buffer;
+  mimetype: string;
+  originalname?: string;
+  size?: number;
+};
 
 @Controller('auth')
 export class AuthController {
@@ -30,13 +35,9 @@ export class AuthController {
   @Post('register')
   @UseInterceptors(
     FileInterceptor('photo', {
-      dest: PROFILE_PHOTOS_DIR,
+      storage: memoryStorage(),
       limits: { fileSize: MAX_PHOTO_SIZE_BYTES },
-      fileFilter: (
-        _request: unknown,
-        file: { mimetype: string },
-        callback: (error: Error | null, acceptFile: boolean) => void,
-      ) => {
+      fileFilter: (req, file, callback) => {
         if (!file.mimetype.startsWith('image/')) {
           return callback(new BadRequestException('Le fichier doit etre une image'), false);
         }
@@ -48,10 +49,7 @@ export class AuthController {
     @Body() dto: RegisterDto,
     @UploadedFile() photo?: UploadedPhoto,
   ): Promise<AuthPayload> {
-    if (photo) {
-      dto.photoPath = `/uploads/profile-photos/${photo.filename}`;
-    }
-    return this.authService.register(dto);
+    return this.authService.register(dto, photo);
   }
 
   // Route reservee aux non connectes.

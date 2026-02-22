@@ -7,6 +7,7 @@ import { DatabaseModule } from './database/database.module';
 import { UsersModule } from './users/users.module';
 import { AccessModule } from './access/access.module';
 import { AuthModule } from './auth/auth.module';
+import { StorageModule } from './storage/storage.module';
 
 // Module racine: il assemble la configuration, les modules, controllers et services.
 @Module({
@@ -21,6 +22,7 @@ import { AuthModule } from './auth/auth.module';
     DatabaseModule,
     AccessModule,
     AuthModule,
+    StorageModule,
   ],
   controllers: [AppController],
   providers: [AppService],

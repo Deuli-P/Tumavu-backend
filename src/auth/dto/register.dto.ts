@@ -1,14 +1,14 @@
-import { IsEmail, IsOptional, IsString, IsUrl, MinLength } from 'class-validator';
+import { IsEmail, IsString, MinLength } from 'class-validator';
 
 // Payload d'inscription.
 export class RegisterDto {
   @IsString()
   @MinLength(1)
-  firstName!: string;
+  firstname!: string;
 
   @IsString()
   @MinLength(1)
-  lastName!: string;
+  lastname!: string;
 
   @IsEmail()
   email!: string;
@@ -16,11 +16,4 @@ export class RegisterDto {
   @IsString()
   @MinLength(8)
   password!: string;
-
-  @IsOptional()
-  @IsUrl(
-    { require_protocol: true },
-    { message: 'photoPath doit etre une URL complete (https://...)' },
-  )
-  photoPath?: string;
 }
