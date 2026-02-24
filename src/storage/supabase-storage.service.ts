@@ -32,7 +32,7 @@ export class SupabaseStorageService {
     objectPath: string,
     file: UploadBody,
     options?: { bucket?: string; contentType?: string; upsert?: boolean },
-  ): Promise<{ path: string; fullPath: string }> {
+  ): Promise<{ publicUrl: string }> {
     const bucket = options?.bucket ?? this.defaultBucket;
     const normalizedPath = this.toStoragePath(objectPath, bucket);
     const upsert = options?.upsert ?? true;
@@ -48,9 +48,9 @@ export class SupabaseStorageService {
       );
     }
 
+    const publicUrl = this.getPublicUrl(normalizedPath, { bucket });
     return {
-      path: normalizedPath,
-      fullPath: `${bucket}/${normalizedPath}`,
+      publicUrl,
     };
   }
 

@@ -13,16 +13,23 @@ type UploadedPhoto = {
   size?: number;
 };
 
+
 export type AuthPayload = {
   token: string;
   user: {
-    authId: string;
-    userId: string;
+    id: string;
     email: string;
-    firstName: string | null;
-    lastName: string | null;
-    isCompanyOwner: boolean;
-    isAdmin: boolean;
+    firstName: string;
+    photoPath?: string | null;
+    lastName: string;
+    role: {
+      id: number;
+    };
+  };
+  company?: {
+    id: number;
+    name: string;
+    owner_id: string;
   };
 };
 
@@ -54,14 +61,14 @@ export class AuthService {
       select: { id: true },
     });
 
-   const created = await this.databaseService.auth.create({
+    const created = await this.databaseService.auth.create({
       data: {
         email: dto.email.toLowerCase().trim(),
         password: passwordHash,
         user: {
           create: {
-            firstName: dto.firstname,
-            lastName: dto.lastname,
+            firstName: dto.firstName,
+            lastName: dto.lastName,
             roleId: defaultRole?.id,
           },
         },
@@ -74,6 +81,16 @@ export class AuthService {
             id: true,
             firstName: true,
             lastName: true,
+            roleId: true,
+            companies: {
+              where: { deleted: false },
+              select: {
+                id: true,
+                ownerId: true,
+                description: true,
+              },
+              take: 1,
+            },
           },
         },
       },
@@ -86,11 +103,10 @@ export class AuthService {
         const extension = file.mimetype.split('/')[1] || 'jpg';
         const timestamp = Date.now();
 
-        const storagePath = `users/${created.user.id}/photo/photo_${timestamp}.${extension}`;
+        const storagePath = `${created.user.id}/photo/photo_${timestamp}.${extension}`;
 
         await this.storageService.uploadFile(storagePath, file.buffer, {
           contentType: file.mimetype,
-          bucket: 'public',
         });
 
         fullPath = storagePath;
@@ -104,9 +120,9 @@ export class AuthService {
       } catch (error) {
         console.error('Erreur upload photo:', error);
       }
-}
+    }
 
-    return this.buildAuthPayload(created, false);
+    return this.buildAuthPayload(created);
   }
 
   async login(dto: LoginDto): Promise<AuthPayload> {
@@ -121,9 +137,14 @@ export class AuthService {
             id: true,
             firstName: true,
             lastName: true,
+            roleId: true,
             companies: {
               where: { deleted: false },
-              select: { id: true },
+              select: {
+                id: true,
+                ownerId: true,
+                description: true,
+              },
               take: 1,
             },
           },
@@ -155,29 +176,35 @@ export class AuthService {
       id: string;
       firstName: string | null;
       lastName: string | null;
-      companies?: Array<{ id: number }>;
+      roleId: number | null;
+      companies?: Array<{ id: number; ownerId: string | null; description: string | null }>;
     } | null;
-  }, isCompanyOwnerOverride?: boolean): AuthPayload {
+  }): AuthPayload {
     if (!auth.user) {
       throw new UnauthorizedException('Utilisateur introuvable');
     }
 
-    const adminEmails = (process.env.ADMIN_EMAILS ?? '')
-      .split(',')
-      .map((value) => value.trim().toLowerCase())
-      .filter(Boolean);
+    const company = auth.user.companies?.[0] ?? null;
 
     return {
       token: this.tokenService.signAuthToken(auth.id),
       user: {
-        authId: auth.id,
-        userId: auth.user.id,
+        id: auth.user.id,
         email: auth.email,
         firstName: auth.user.firstName,
+        photoPath: auth.user.photoPath,
         lastName: auth.user.lastName,
-        isCompanyOwner: isCompanyOwnerOverride ?? (auth.user.companies?.length ?? 0) > 0,
-        isAdmin: adminEmails.includes(auth.email.toLowerCase()),
+        role: {
+          id: auth.user.roleId ?? 0,
+        },
       },
+      company: company
+        ? {
+            id: company.id,
+            name: company.description ?? '',
+            owner_id: company.ownerId,
+          }
+        : null,
     };
   }
 }
