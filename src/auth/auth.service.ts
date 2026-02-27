@@ -1,4 +1,4 @@
-import { ConflictException, Injectable, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { DatabaseService } from '../database/database.service';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
@@ -13,23 +13,41 @@ type UploadedPhoto = {
   size?: number;
 };
 
-
 export type AuthPayload = {
   token: string;
-  user: {
+  userLogged: {
     id: string;
-    email: string;
-    firstName: string;
-    photoPath?: string | null;
-    lastName: string;
-    role: {
-      id: number;
+    info: {
+      firstName: string;
+      lastName: string;
+      city: string | null;
+      photo: {
+        slug: string | null;
+        alt: string;
+        type: string | null;
+      };
+      email: string;
+      created_at: string;
+      phone: string | null;
     };
-  };
-  company?: {
-    id: number;
-    name: string;
-    owner_id: string;
+    company: {
+      name: string;
+      phone: string | null;
+      type: string | null;
+      address: {
+        city: string;
+        street: string;
+        postalCode: string;
+        country: string;
+      };
+    } | null;
+    setup: {
+      language: {
+        code: string;
+        id: number;
+      };
+      notifications: boolean;
+    };
   };
 };
 
@@ -43,6 +61,10 @@ export class AuthService {
   ) {}
 
   async register(dto: RegisterDto, file?: UploadedPhoto): Promise<AuthPayload> {
+    if (dto.password !== dto.confirmedPassword) {
+      throw new BadRequestException('Les mots de passe ne correspondent pas');
+    }
+
     const existing = await this.databaseService.auth.findFirst({
       where: { email: dto.email, deleted: false },
       select: { id: true },
@@ -54,10 +76,7 @@ export class AuthService {
 
     const passwordHash = await this.passwordService.hash(dto.password);
     const defaultRole = await this.databaseService.role.findFirst({
-      where: {
-        label: 'USER',
-        deleted: false,
-      },
+      where: { label: 'USER', deleted: false },
       select: { id: true },
     });
 
@@ -69,81 +88,90 @@ export class AuthService {
           create: {
             firstName: dto.firstName,
             lastName: dto.lastName,
+            phone: dto.phone,
+            city: dto.address.city,
             roleId: defaultRole?.id,
           },
         },
       },
-      select: {
-        id: true,
-        email: true,
-        user: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-            roleId: true,
-            companies: {
-              where: { deleted: false },
-              select: {
-                id: true,
-                ownerId: true,
-                description: true,
-              },
-              take: 1,
-            },
-          },
-        },
-      },
+      select: { id: true, user: { select: { id: true } } },
     });
-
-    let fullPath: string | undefined;
 
     if (file && created.user) {
       try {
         const extension = file.mimetype.split('/')[1] || 'jpg';
-        const timestamp = Date.now();
-
-        const storagePath = `${created.user.id}/photo/photo_${timestamp}.${extension}`;
+        const storagePath = `${created.user.id}/photo/photo_${Date.now()}.${extension}`;
 
         await this.storageService.uploadFile(storagePath, file.buffer, {
           contentType: file.mimetype,
         });
 
-        fullPath = storagePath;
-
-        // Update user avec chemin photo
         await this.databaseService.user.update({
           where: { id: created.user.id },
-          data: { photoPath: fullPath },
+          data: { photoPath: storagePath },
         });
-
       } catch (error) {
         console.error('Erreur upload photo:', error);
       }
     }
 
-    return this.buildAuthPayload(created);
+    return this.getMe(created.id);
   }
 
   async login(dto: LoginDto): Promise<AuthPayload> {
-    const auth = await this.databaseService.auth.findFirst({
+    const credentials = await this.databaseService.auth.findFirst({
       where: { email: dto.email, deleted: false },
+      select: { id: true, password: true },
+    });
+
+    if (!credentials) {
+      throw new UnauthorizedException('Email ou mot de passe invalide');
+    }
+
+    const passwordOk = await this.passwordService.verify(dto.password, credentials.password);
+    if (!passwordOk) {
+      throw new UnauthorizedException('Email ou mot de passe invalide');
+    }
+
+    await this.databaseService.auth.update({
+      where: { id: credentials.id },
+      data: { lastSignInAt: new Date() },
+    });
+
+    return this.getMe(credentials.id);
+  }
+
+  async getMe(authId: string): Promise<AuthPayload> {
+    const auth = await this.databaseService.auth.findFirst({
+      where: { id: authId, deleted: false },
       select: {
         id: true,
         email: true,
-        password: true,
+        createdAt: true,
         user: {
           select: {
             id: true,
             firstName: true,
             lastName: true,
-            roleId: true,
+            photoPath: true,
+            phone: true,
+            city: true,
+            language: { select: { id: true, code: true } },
+            notifications: true,
             companies: {
               where: { deleted: false },
               select: {
-                id: true,
-                ownerId: true,
                 description: true,
+                phone: true,
+                type: true,
+                address: {
+                  select: {
+                    city: true,
+                    street: true,
+                    zipCode: true,
+                    country: true,
+                  },
+                },
               },
               take: 1,
             },
@@ -153,58 +181,58 @@ export class AuthService {
     });
 
     if (!auth || !auth.user) {
-      throw new UnauthorizedException('Email ou mot de passe invalide');
-    }
-
-    const passwordOk = await this.passwordService.verify(dto.password, auth.password);
-    if (!passwordOk) {
-      throw new UnauthorizedException('Email ou mot de passe invalide');
-    }
-
-    await this.databaseService.auth.update({
-      where: { id: auth.id },
-      data: { lastSignInAt: new Date() },
-    });
-
-    return this.buildAuthPayload(auth);
-  }
-
-  private buildAuthPayload(auth: {
-    id: string;
-    email: string;
-    user: {
-      id: string;
-      firstName: string | null;
-      lastName: string | null;
-      roleId: number | null;
-      companies?: Array<{ id: number; ownerId: string | null; description: string | null }>;
-    } | null;
-  }): AuthPayload {
-    if (!auth.user) {
       throw new UnauthorizedException('Utilisateur introuvable');
     }
 
-    const company = auth.user.companies?.[0] ?? null;
+    const { user } = auth;
+    const firstName = user.firstName;
+    const lastName = user.lastName;
+
+    if (!firstName || !lastName) {
+      throw new UnauthorizedException('Profil utilisateur incomplet');
+    }
+
+    const company = user.companies[0] ?? null;
+    const photoExt = user.photoPath?.split('.').pop() ?? null;
 
     return {
       token: this.tokenService.signAuthToken(auth.id),
-      user: {
-        id: auth.user.id,
-        email: auth.email,
-        firstName: auth.user.firstName,
-        photoPath: auth.user.photoPath,
-        lastName: auth.user.lastName,
-        role: {
-          id: auth.user.roleId ?? 0,
+      userLogged: {
+        id: user.id,
+        info: {
+          firstName,
+          lastName,
+          city: user.city,
+          photo: {
+            slug: user.photoPath,
+            alt: `${firstName} ${lastName}`,
+            type: photoExt,
+          },
+          email: auth.email,
+          created_at: auth.createdAt.toISOString(),
+          phone: user.phone,
+        },
+        company: company
+          ? {
+              name: company.description ?? '',
+              phone: company.phone,
+              type: company.type,
+              address: {
+                city: company.address.city,
+                street: company.address.street,
+                postalCode: company.address.zipCode,
+                country: company.address.country,
+              },
+            }
+          : null,
+        setup: {
+          language: {
+            code : user.language?.code ?? 'FR',
+            id: user.language?.id ?? 1,
+          },
+          notifications: user.notifications,
         },
       },
-      company: company
-        ? {
-            id: company.id,
-            name: company.description ?? '',
-            owner_id: company.ownerId,
-          }
-        : null,
     };
   }
 }

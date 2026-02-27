@@ -59,10 +59,10 @@ export class AuthController {
     return this.authService.login(dto);
   }
 
-  // Route reservee aux connectes.
+  // Route reservee aux connectes. Retourne les infos completes du convoyeur.
   @UseGuards(AuthenticatedGuard)
   @Get('me')
-  me(@CurrentUser() user: AuthenticatedRequestUser) {
-    return user;
+  me(@CurrentUser() user: AuthenticatedRequestUser): Promise<AuthPayload> {
+    return this.authService.getMe(user.authId);
   }
 }

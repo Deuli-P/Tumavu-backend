@@ -1,0 +1,18 @@
+import { IsInt, IsOptional, IsString, Min, MinLength } from 'class-validator';
+
+export class UpdateBenefitDto {
+  @IsOptional()
+  @IsString()
+  @MinLength(1)
+  title?: string;
+
+  @IsOptional()
+  @IsString()
+  @MinLength(1)
+  description?: string;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  minPassages?: number;
+}

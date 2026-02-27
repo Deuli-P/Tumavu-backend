@@ -7,17 +7,29 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model User {
-  id         String   @id @default(uuid())
-  firstName  String  @map("firstname")
-  lastName   String  @map("lastname")
-  deleted    Boolean  @default(false)
-  updatedAt  DateTime @updatedAt
-  roleId Int?
-  role   Role? @relation(fields: [roleId], references: [id])
-  photoPath  String?
+enum DocumentStatus {
+  ACTIVE
+  ARCHIVED
+}
 
-  auth           Auth
+model User {
+  id            String   @id @default(uuid())
+  firstName     String   @map("firstname")
+  lastName      String   @map("lastname")
+  deleted       Boolean  @default(false)
+  updatedAt     DateTime @updatedAt
+  roleId        Int?
+  role          Role?    @relation(fields: [roleId], references: [id])
+  photoPath     String?
+  phone         String?
+  city          String?
+  postalCode    String?  @map("postal_code")
+  country       String?
+  languageId    Int?     @map("language_id")
+  language      Language? @relation(fields: [languageId], references: [id])
+  notifications Boolean  @default(true)
+
+  auth           Auth?
 
   // Jobs créés
   createdJobs    Job[]  @relation("CreatorJobs")
@@ -27,6 +39,8 @@ model User {
   job Job? @relation("EmployeeJob", fields: [jobId], references: [id], onDelete: SetNull)
 
   companies      Company[] @relation("CompanyOwner")
+  documents      Document[]
+  passages       UserPassage[]
 
   @@map("users")
 }
@@ -47,20 +61,26 @@ model Auth {
 }
 
 model Job {
-  id          Int      @id @default(autoincrement())
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  deleted     Boolean  @default(false)
+  id          Int       @id @default(autoincrement())
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deleted     Boolean   @default(false)
+
+  title       String
+  description String?
+  startDate   DateTime? @map("start_date")
+  endDate     DateTime? @map("end_date")
 
   // Créateur
   createdBy   String
-  creator     User     @relation("CreatorJobs", fields: [createdBy], references: [id])
+  creator     User      @relation("CreatorJobs", fields: [createdBy], references: [id])
 
   // Employé (1 seul user max)
-  employee    User?    @relation("EmployeeJob")
+  employee    User?     @relation("EmployeeJob")
 
   companyId   Int
-  company     Company  @relation(fields: [companyId], references: [id])
+  company     Company   @relation(fields: [companyId], references: [id])
+  passages    UserPassage[]
 
   @@map("jobs")
 }
@@ -75,10 +95,15 @@ model Company {
   ownerId     String
   addressId   Int
   description String?
+  phone       String?
+  type        String?
 
-  owner       User?    @relation("CompanyOwner", fields: [ownerId], references: [id])
-  address     Address  @relation(fields: [addressId], references: [id])
-  jobs        Job[]     
+  owner          User?                  @relation("CompanyOwner", fields: [ownerId], references: [id])
+  address        Address                @relation(fields: [addressId], references: [id])
+  jobs           Job[]
+  passages       UserPassage[]
+  defaultOptions CompanyDefaultOptions?
+  benefits       CompanyBenefit[]
 
   @@map("companies")
 }
@@ -105,7 +130,7 @@ model Role {
   updatedAt   DateTime @updatedAt
   deleted     Boolean  @default(false)
   parentId    Int?
-  label       String
+  label       String   @unique
 
   parent      Role?    @relation("RoleHierarchy", fields: [parentId], references: [id])
   children    Role[]   @relation("RoleHierarchy")
@@ -128,4 +153,82 @@ model Permission {
   roles       Role[]
 
   @@map("permissions")
+}
+
+model UserPassage {
+  id            Int      @id @default(autoincrement())
+  date          DateTime @db.Date
+  count         Int      @default(1)
+  lastPassageAt DateTime @map("last_passage_at")
+
+  userId        String   @map("user_id")
+  companyId     Int      @map("company_id")
+  jobId         Int?     @map("job_id")
+
+  user          User     @relation(fields: [userId], references: [id])
+  company       Company  @relation(fields: [companyId], references: [id])
+  job           Job?     @relation(fields: [jobId], references: [id])
+
+  @@unique([userId, companyId, date])
+  @@map("user_passages")
+}
+
+model CompanyDefaultOptions {
+  id                Int     @id @default(autoincrement())
+  companyId         Int     @unique @map("company_id")
+  maxPassagesPerDay Int     @default(1) @map("max_passages_per_day")
+
+  company           Company @relation(fields: [companyId], references: [id])
+
+  @@map("company_default_options")
+}
+
+model CompanyBenefit {
+  id          Int      @id @default(autoincrement())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  deleted     Boolean  @default(false)
+
+  companyId   Int      @map("company_id")
+  title       String
+  description String?
+  minPassages Int      @default(1) @map("min_passages")
+
+  company     Company  @relation(fields: [companyId], references: [id])
+
+  @@map("company_benefits")
+}
+
+model Document {
+  id        Int            @id @default(autoincrement())
+  createdAt DateTime       @default(now())
+  slug      String
+  status    DocumentStatus @default(ACTIVE)
+  deleted   Boolean        @default(false)
+
+  userId    String         @map("user_id")
+  user      User           @relation(fields: [userId], references: [id])
+
+  @@map("documents")
+}
+
+model Country {
+  id             Int    @id @default(autoincrement())
+  name           String
+  nativeName     String @map("native_name")
+  code           String @unique
+  phoneIndicatif String @map("phone_indicatif")
+  nationality    String
+
+  @@map("countries")
+}
+
+model Language {
+  id    Int    @id @default(autoincrement())
+  name  String
+  code  String @unique
+
+  users User[]
+
+  @@map("languages")
 }

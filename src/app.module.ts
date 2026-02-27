@@ -8,6 +8,10 @@ import { UsersModule } from './users/users.module';
 import { AccessModule } from './access/access.module';
 import { AuthModule } from './auth/auth.module';
 import { StorageModule } from './storage/storage.module';
+import { CompanyModule } from './company/company.module';
+import { AnnonceModule } from './annonce/annonce.module';
+import { DocumentModule } from './document/document.module';
+import { PassageModule } from './passage/passage.module';
 
 // Module racine: il assemble la configuration, les modules, controllers et services.
 @Module({
@@ -23,6 +27,10 @@ import { StorageModule } from './storage/storage.module';
     AccessModule,
     AuthModule,
     StorageModule,
+    CompanyModule,
+    AnnonceModule,
+    DocumentModule,
+    PassageModule,
   ],
   controllers: [AppController],
   providers: [AppService],
