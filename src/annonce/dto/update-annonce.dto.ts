@@ -1,4 +1,4 @@
-import { IsDateString, IsOptional, IsString, MinLength } from 'class-validator';
+import { IsArray, IsDateString, IsInt, IsOptional, IsString, MinLength } from 'class-validator';
 
 export class UpdateAnnonceDto {
   @IsOptional()
@@ -18,4 +18,9 @@ export class UpdateAnnonceDto {
   @IsOptional()
   @IsDateString()
   endDate?: string;
+
+  @IsOptional()
+  @IsArray()
+  @IsInt({ each: true })
+  tagIds?: number[];
 }

@@ -1,4 +1,4 @@
-import { IsDateString, IsInt, IsOptional, IsPositive, IsString, MinLength } from 'class-validator';
+import { IsArray, IsDateString, IsInt, IsOptional, IsPositive, IsString, MinLength } from 'class-validator';
 
 export class CreateAnnonceDto {
   @IsString()
@@ -21,4 +21,9 @@ export class CreateAnnonceDto {
   @IsInt()
   @IsPositive()
   companyId!: number;
+
+  @IsOptional()
+  @IsArray()
+  @IsInt({ each: true })
+  tagIds?: number[];
 }

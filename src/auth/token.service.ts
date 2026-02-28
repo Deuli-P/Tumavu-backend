@@ -1,6 +1,6 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { createHmac, timingSafeEqual } from 'node:crypto';
+import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
 
 type TokenPayload = {
   sub: string;
@@ -10,7 +10,7 @@ type TokenPayload = {
 // Service de token HMAC (format proche JWT: header.payload.signature).
 @Injectable()
 export class TokenService {
-  private readonly ttlSeconds = 60 * 60 * 24; // 24h
+  readonly ttlSeconds = 60 * 60 * 24; // 24h
 
   constructor(private readonly configService: ConfigService) {}
 
@@ -53,6 +53,10 @@ export class TokenService {
     }
 
     return payload;
+  }
+
+  hashToken(token: string): string {
+    return createHash('sha256').update(token).digest('hex');
   }
 
   private signPart(content: string): string {

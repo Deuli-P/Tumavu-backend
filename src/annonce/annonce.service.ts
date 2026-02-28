@@ -16,6 +16,7 @@ const ANNONCE_SELECT = {
   endDate: true,
   createdAt: true,
   createdBy: true,
+  tags: { select: { id: true, name: true } },
   company: {
     select: {
       id: true,
@@ -54,6 +55,7 @@ export class AnnonceService {
         endDate: dto.endDate ? new Date(dto.endDate) : undefined,
         createdBy: userId,
         companyId: dto.companyId,
+        tags: dto.tagIds?.length ? { connect: dto.tagIds.map((id) => ({ id })) } : undefined,
       },
       select: ANNONCE_SELECT,
     });
@@ -69,6 +71,7 @@ export class AnnonceService {
         description: dto.description,
         startDate: dto.startDate ? new Date(dto.startDate) : undefined,
         endDate: dto.endDate ? new Date(dto.endDate) : undefined,
+        tags: dto.tagIds !== undefined ? { set: dto.tagIds.map((id) => ({ id })) } : undefined,
       },
       select: ANNONCE_SELECT,
     });

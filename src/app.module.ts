@@ -12,6 +12,7 @@ import { CompanyModule } from './company/company.module';
 import { AnnonceModule } from './annonce/annonce.module';
 import { DocumentModule } from './document/document.module';
 import { PassageModule } from './passage/passage.module';
+import { SettingsModule } from './settings/settings.module';
 
 // Module racine: il assemble la configuration, les modules, controllers et services.
 @Module({
@@ -31,6 +32,7 @@ import { PassageModule } from './passage/passage.module';
     AnnonceModule,
     DocumentModule,
     PassageModule,
+    SettingsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

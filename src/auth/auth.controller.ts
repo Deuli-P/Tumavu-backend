@@ -3,11 +3,14 @@ import {
   Body,
   Controller,
   Get,
+  HttpCode,
   Post,
+  Req,
   UploadedFile,
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
+import { Request } from 'express';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { AuthPayload, AuthService } from './auth.service';
 import { CurrentUser } from './decorators/current-user.decorator';
@@ -64,5 +67,13 @@ export class AuthController {
   @Get('me')
   me(@CurrentUser() user: AuthenticatedRequestUser): Promise<AuthPayload> {
     return this.authService.getMe(user.authId);
+  }
+
+  @UseGuards(AuthenticatedGuard)
+  @Post('logout')
+  @HttpCode(200)
+  logout(@Req() req: Request): Promise<void> {
+    const token = (req.headers.authorization as string).slice(7);
+    return this.authService.logout(token);
   }
 }

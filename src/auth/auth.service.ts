@@ -21,6 +21,8 @@ export type AuthPayload = {
       firstName: string;
       lastName: string;
       city: string | null;
+      postalCode: string | null;
+      country: string | null;
       photoUrl: string | null;
       email: string;
       created_at: string;
@@ -111,7 +113,9 @@ export class AuthService {
       }
     }
 
-    return this.getMe(created.id);
+    const payload = await this.getMe(created.id);
+    await this.saveSession(created.id, payload.token);
+    return payload;
   }
 
   async login(dto: LoginDto): Promise<AuthPayload> {
@@ -129,12 +133,31 @@ export class AuthService {
       throw new UnauthorizedException('Email ou mot de passe invalide');
     }
 
-    await this.databaseService.auth.update({
-      where: { id: credentials.id },
-      data: { lastSignInAt: new Date() },
-    });
+    // Révoque l'ancienne session et met à jour la date de connexion.
+    await this.databaseService.$transaction([
+      this.databaseService.session.deleteMany({ where: { authId: credentials.id } }),
+      this.databaseService.auth.update({
+        where: { id: credentials.id },
+        data: { lastSignInAt: new Date() },
+      }),
+    ]);
 
-    return this.getMe(credentials.id);
+    const payload = await this.getMe(credentials.id);
+    await this.saveSession(credentials.id, payload.token);
+    return payload;
+  }
+
+  async logout(token: string): Promise<void> {
+    const tokenHash = this.tokenService.hashToken(token);
+    await this.databaseService.session.deleteMany({ where: { tokenHash } });
+  }
+
+  private async saveSession(authId: string, token: string): Promise<void> {
+    const tokenHash = this.tokenService.hashToken(token);
+    const expiresAt = new Date(Date.now() + this.tokenService.ttlSeconds * 1000);
+    await this.databaseService.session.create({
+      data: { authId, tokenHash, expiresAt },
+    });
   }
 
   async getMe(authId: string): Promise<AuthPayload> {
@@ -152,6 +175,8 @@ export class AuthService {
             photoPath: true,
             phone: true,
             city: true,
+            postalCode: true,
+            country: true,
             language: { select: { id: true, code: true } },
             notifications: true,
             companies: {
@@ -200,6 +225,8 @@ export class AuthService {
           lastName,
           city: user.city,
           photoUrl:user.photoPath,
+          postalCode: user.postalCode,
+          country: user.country,
           email: auth.email,
           created_at: auth.createdAt.toISOString(),
           phone: user.phone,

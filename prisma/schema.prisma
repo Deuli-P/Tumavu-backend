@@ -55,9 +55,22 @@ model Auth {
   lastSignInAt    DateTime?
   deleted         Boolean  @default(false)
 
-  user            User     @relation(fields: [id], references: [id], onDelete: Restrict)
+  user            User      @relation(fields: [id], references: [id], onDelete: Restrict)
+  sessions        Session[]
 
   @@map("auth")
+}
+
+model Session {
+  id        Int      @id @default(autoincrement())
+  tokenHash String   @unique @map("token_hash")
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  authId    String   @map("auth_id")
+  auth      Auth     @relation(fields: [authId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
 }
 
 model Job {
@@ -77,6 +90,9 @@ model Job {
 
   // Employé (1 seul user max)
   employee    User?     @relation("EmployeeJob")
+
+  //Tags
+  tags   Tag[] 
 
   companyId   Int
   company     Company   @relation(fields: [companyId], references: [id])
@@ -231,4 +247,13 @@ model Language {
   users User[]
 
   @@map("languages")
+}
+
+model Tag {
+  id   Int    @id @default(autoincrement())
+  name String @unique
+
+  jobs Job[]
+
+  @@map("tags")
 }

@@ -23,6 +23,22 @@ export class AuthenticatedGuard implements CanActivate {
     const token = authHeader.slice(7);
     const payload = this.tokenService.verifyAuthToken(token);
 
+    // Vérifie que la session existe en base (permet la déconnexion côté serveur).
+    const tokenHash = this.tokenService.hashToken(token);
+    const session = await this.databaseService.session.findUnique({
+      where: { tokenHash },
+      select: { expiresAt: true },
+    });
+
+    if (!session) {
+      throw new UnauthorizedException('Session invalide ou expiree');
+    }
+
+    if (session.expiresAt < new Date()) {
+      await this.databaseService.session.deleteMany({ where: { tokenHash } });
+      throw new UnauthorizedException('Token expire');
+    }
+
     const auth = await this.databaseService.auth.findFirst({
       where: {
         id: payload.sub,
