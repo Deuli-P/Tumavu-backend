@@ -135,11 +135,15 @@ const tags = [
   { name: 'LONG_TERM' },
   { name: 'SHORT_TERM' },
   { name: 'COOKING' },
+  { name: 'WAITER' },
   { name: 'SERVICE' },
   { name: 'PHOTOGRAPHY' },
   { name: 'MUSIC' },
   { name: 'ENTERTAINMENT' },
-  { name: 'DANCE' }
+  { name: 'DANCE' },
+  { name: 'BABYSITTING' },
+  { name: 'COURSE' },
+  { name: 'MENAGE' }
 ]
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
