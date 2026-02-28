@@ -1,8 +1,10 @@
-import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { DocumentStatus } from '@prisma/client';
 import { DatabaseService } from '../database/database.service';
-import { CreateDocumentDto } from './dto/create-document.dto';
-import { ReplaceDocumentDto } from './dto/replace-document.dto';
+import { SupabaseStorageService } from '../storage/supabase-storage.service';
+
+// Magic bytes d'un fichier PDF : %PDF-
+const PDF_MAGIC = Buffer.from([0x25, 0x50, 0x44, 0x46, 0x2d]);
 
 const DOCUMENT_SELECT = {
   id: true,
@@ -14,13 +16,25 @@ const DOCUMENT_SELECT = {
 
 @Injectable()
 export class DocumentService {
-  constructor(private readonly databaseService: DatabaseService) {}
+  constructor(
+    private readonly databaseService: DatabaseService,
+    private readonly storageService: SupabaseStorageService,
+  ) {}
 
-  create(userId: string, dto: CreateDocumentDto) {
+  async create(userId: string, file: Express.Multer.File) {
+    this.validatePdf(file);
+
+    const storagePath = `${userId}/cv/cv_${Date.now()}.pdf`;
+
+    await this.storageService.uploadFile(storagePath, file.buffer, {
+      contentType: 'application/pdf',
+      upsert: true,
+    });
+
     return this.databaseService.document.create({
       data: {
-        slug: dto.slug,
-        status: dto.status ?? DocumentStatus.ACTIVE,
+        slug: storagePath,
+        status: DocumentStatus.ACTIVE,
         userId,
       },
       select: DOCUMENT_SELECT,
@@ -45,10 +59,18 @@ export class DocumentService {
     return doc;
   }
 
-  async replace(userId: string, id: number, dto: ReplaceDocumentDto) {
+  async replace(userId: string, id: number, file: Express.Multer.File) {
     await this.checkOwnership(userId, id);
+    this.validatePdf(file);
 
-    // Suppression douce de l'ancien + création du nouveau dans une transaction.
+    const storagePath = `${userId}/cv/cv_${Date.now()}.pdf`;
+
+    await this.storageService.uploadFile(storagePath, file.buffer, {
+      contentType: 'application/pdf',
+      upsert: true,
+    });
+
+    // Archive l'ancien + crée le nouveau dans une transaction.
     const [, created] = await this.databaseService.$transaction([
       this.databaseService.document.update({
         where: { id },
@@ -56,7 +78,7 @@ export class DocumentService {
       }),
       this.databaseService.document.create({
         data: {
-          slug: dto.slug,
+          slug: storagePath,
           status: DocumentStatus.ACTIVE,
           userId,
         },
@@ -74,6 +96,18 @@ export class DocumentService {
       where: { id },
       data: { deleted: true, status: DocumentStatus.ARCHIVED },
     });
+  }
+
+  // Vérifie mimetype + magic bytes pour s'assurer que c'est un vrai PDF.
+  private validatePdf(file: Express.Multer.File): void {
+    if (file.mimetype !== 'application/pdf') {
+      throw new BadRequestException('Le fichier doit etre un PDF');
+    }
+
+    const header = file.buffer.subarray(0, 5);
+    if (!header.equals(PDF_MAGIC)) {
+      throw new BadRequestException('Le fichier n\'est pas un PDF valide');
+    }
   }
 
   private async checkOwnership(userId: string, id: number): Promise<void> {

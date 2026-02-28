@@ -43,7 +43,7 @@ export class UsersService {
   async updatePhoto(
     userId: string,
     file: { buffer: Buffer; mimetype: string },
-  ): Promise<{ slug: string; publicUrl: string }> {
+  ): Promise<{ publicUrl: string }> {
     const extension = file.mimetype.split('/')[1] || 'jpg';
     const storagePath = `${userId}/photo/photo_${Date.now()}.${extension}`;
 
@@ -52,12 +52,16 @@ export class UsersService {
       upsert: true,
     });
 
+    const publicUrlData= this.storageService.getPublicUrl(storagePath);
+
+    console.log('publicUrlData', publicUrlData);
+
     await this.databaseService.user.update({
       where: { id: userId },
-      data: { photoPath: storagePath },
+      data: { photoPath: publicUrlData },
     });
 
-    return { slug: storagePath, publicUrl };
+    return { publicUrl: publicUrlData };
   }
 
   async updateLanguage(userId: string, languageId: number): Promise<void> {

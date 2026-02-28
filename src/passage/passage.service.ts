@@ -91,4 +91,19 @@ export class PassageService {
       orderBy: { lastPassageAt: 'desc' },
     });
   }
+
+  async findByUserForOwner(companyOwnerId: string, targetUserId: string) {
+    const company = await this.databaseService.company.findFirst({
+      where: { ownerId: companyOwnerId, deleted: false },
+      select: { id: true },
+    });
+
+    if (!company) throw new NotFoundException('Entreprise introuvable');
+
+    return this.databaseService.userPassage.findMany({
+      where: { companyId: company.id, userId: targetUserId },
+      select: PASSAGE_SELECT,
+      orderBy: { date: 'desc' },
+    });
+  }
 }

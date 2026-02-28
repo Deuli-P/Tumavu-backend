@@ -21,11 +21,7 @@ export type AuthPayload = {
       firstName: string;
       lastName: string;
       city: string | null;
-      photo: {
-        slug: string | null;
-        alt: string;
-        type: string | null;
-      };
+      photoUrl: string | null;
       email: string;
       created_at: string;
       phone: string | null;
@@ -203,11 +199,7 @@ export class AuthService {
           firstName,
           lastName,
           city: user.city,
-          photo: {
-            slug: user.photoPath,
-            alt: `${firstName} ${lastName}`,
-            type: photoExt,
-          },
+          photoUrl:user.photoPath,
           email: auth.email,
           created_at: auth.createdAt.toISOString(),
           phone: user.phone,

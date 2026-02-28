@@ -38,7 +38,7 @@ export class UserController {
   updatePhoto(
     @CurrentUser() user: AuthenticatedRequestUser,
     @UploadedFile() file?: Express.Multer.File,
-  ): Promise<{ slug: string; publicUrl: string }> {
+  ): Promise<{ publicUrl: string }> {
     if (!file) throw new BadRequestException('Fichier image requis');
     return this.usersService.updatePhoto(user.userId, file);
   }
