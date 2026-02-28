@@ -32,7 +32,7 @@ export class AnnonceController {
   }
 
   @Get()
-  findAll(@Query('companyId', new ParseIntPipe({ optional: true })) companyId?: number) {
+  findAll(@Query('companyId') companyId?: string) {
     return this.annonceService.findAll(companyId);
   }
 

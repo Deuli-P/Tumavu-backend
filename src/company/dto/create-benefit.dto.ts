@@ -1,16 +1,26 @@
-import { IsInt, IsOptional, IsString, Min, MinLength } from 'class-validator';
+import { IsDateString, IsInt, IsOptional, IsString, Min, MinLength } from 'class-validator';
 
 export class CreateBenefitDto {
   @IsString()
   @MinLength(1)
-  title!: string;
+  name!: string;
 
   @IsOptional()
   @IsString()
   @MinLength(1)
   description?: string;
 
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  quantity?: number;
+
+  @IsOptional()
   @IsInt()
   @Min(1)
-  minPassages!: number;
+  duration?: number;
+
+  @IsOptional()
+  @IsDateString()
+  startDate?: string;
 }

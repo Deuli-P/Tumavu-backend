@@ -1,52 +1,99 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { DatabaseService } from '../database/database.service';
 import { RecordPassageDto } from './dto/record-passage.dto';
 
 const PASSAGE_SELECT = {
   id: true,
-  date: true,
-  count: true,
-  lastPassageAt: true,
+  createdAt: true,
+  countPassageThisDay: true,
+  lastPassageThisDay: true,
   userId: true,
   companyId: true,
-  jobId: true,
 } as const;
 
 @Injectable()
 export class PassageService {
   constructor(private readonly databaseService: DatabaseService) {}
 
-  async record(dto: RecordPassageDto) {
-    // Vérifie que la company existe.
-    const company = await this.databaseService.company.findFirst({
-      where: { id: dto.companyId, deleted: false },
+  async record(scannerUserId: string, dto: RecordPassageDto) {
+    const scannerUser = await this.databaseService.user.findFirst({
+      where: { id: scannerUserId, deleted: false },
       select: {
         id: true,
-        defaultOptions: { select: { maxPassagesPerDay: true } },
+        companies: {
+          where: { deleted: false },
+          select: {
+            id: true,
+            name: true,
+            defaultOptions: { select: { maximumPassagePerDay: true } },
+            address: { select: { locality: true } },
+          },
+          take: 1,
+        },
       },
     });
 
-    if (!company) throw new NotFoundException('Entreprise introuvable');
+    if (!scannerUser) {
+      throw new NotFoundException('Utilisateur scanner introuvable');
+    }
 
-    const maxPassages = company.defaultOptions?.maxPassagesPerDay ?? 1;
+    const scannerCompany = scannerUser.companies[0] ?? null;
+    if (!scannerCompany) {
+      throw new BadRequestException("L'utilisateur scanner n'est rattache a aucune entreprise");
+    }
 
-    // Date du jour sans heure (pour la contrainte unique par jour).
+    const scannedUser = await this.databaseService.user.findFirst({
+      where: { id: dto.userId, deleted: false },
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        photoPath: true,
+        companies: {
+          where: { deleted: false },
+          select: {
+            id: true,
+            name: true,
+            address: { select: { locality: true } },
+          },
+          take: 1,
+        },
+      },
+    });
+
+    if (!scannedUser) {
+      throw new NotFoundException('Utilisateur scanne introuvable');
+    }
+
+    const scannedCompany = scannedUser.companies[0] ?? null;
+    if (!scannedCompany) {
+      throw new BadRequestException("L'utilisateur scanne n'est rattache a aucune entreprise");
+    }
+
+    const scannerLocality = scannerCompany.address.locality.trim().toLowerCase();
+    const scannedLocality = scannedCompany.address.locality.trim().toLowerCase();
+
+    if (scannerLocality !== scannedLocality) {
+      throw new ConflictException('Les entreprises ne sont pas dans la meme ville');
+    }
+
+    const maxPassages = scannerCompany.defaultOptions?.maximumPassagePerDay ?? 1;
+
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    // Vérifie si le maximum du jour est atteint.
-    const existing = await this.databaseService.userPassage.findUnique({
+    const existing = await this.databaseService.passage.findUnique({
       where: {
-        userId_companyId_date: {
+        userId_companyId_createdAt: {
           userId: dto.userId,
-          companyId: dto.companyId,
-          date: today,
+          companyId: scannerCompany.id,
+          createdAt: today,
         },
       },
-      select: { count: true },
+      select: { countPassageThisDay: true },
     });
 
-    if (existing && existing.count >= maxPassages) {
+    if (existing && existing.countPassageThisDay >= maxPassages) {
       throw new ConflictException(
         `Nombre maximum de passages atteint pour aujourd'hui (${maxPassages}/${maxPassages})`,
       );
@@ -54,41 +101,64 @@ export class PassageService {
 
     const now = new Date();
 
-    return this.databaseService.userPassage.upsert({
+    return this.databaseService.passage.upsert({
       where: {
-        userId_companyId_date: {
+        userId_companyId_createdAt: {
           userId: dto.userId,
-          companyId: dto.companyId,
-          date: today,
+          companyId: scannerCompany.id,
+          createdAt: today,
         },
       },
       update: {
-        count: { increment: 1 },
-        lastPassageAt: now,
+        countPassageThisDay: { increment: 1 },
+        lastPassageThisDay: now,
       },
       create: {
         userId: dto.userId,
-        companyId: dto.companyId,
-        jobId: dto.jobId,
-        date: today,
-        count: 1,
-        lastPassageAt: now,
+        companyId: scannerCompany.id,
+        createdAt: today,
+        countPassageThisDay: 1,
+        lastPassageThisDay: now,
       },
-      select: PASSAGE_SELECT,
+      select: {
+        ...PASSAGE_SELECT,
+        user: {
+          select: {
+            photoPath: true,
+            firstName: true,
+            lastName: true,
+          },
+        },
+      },
+    }).then((passage) => {
+      return {
+        id: passage.id,
+        createdAt: passage.createdAt,
+        countPassageThisDay: passage.countPassageThisDay,
+        lastPassageThisDay: passage.lastPassageThisDay,
+        userId: passage.userId,
+        companyId: passage.companyId,
+        scannedUser: {
+          photo: passage.user.photoPath,
+          firstName: passage.user.firstName,
+          lastName: passage.user.lastName,
+          companyName: scannedCompany.name,
+        },
+      };
     });
   }
 
-  findAll(filters: { companyId?: number; userId?: string; date?: string }) {
+  findAll(filters: { companyId?: string; userId?: string; date?: string }) {
     const dateFilter = filters.date ? new Date(filters.date) : undefined;
 
-    return this.databaseService.userPassage.findMany({
+    return this.databaseService.passage.findMany({
       where: {
         ...(filters.companyId ? { companyId: filters.companyId } : {}),
         ...(filters.userId ? { userId: filters.userId } : {}),
-        ...(dateFilter ? { date: dateFilter } : {}),
+        ...(dateFilter ? { createdAt: dateFilter } : {}),
       },
       select: PASSAGE_SELECT,
-      orderBy: { lastPassageAt: 'desc' },
+      orderBy: { lastPassageThisDay: 'desc' },
     });
   }
 
@@ -100,10 +170,10 @@ export class PassageService {
 
     if (!company) throw new NotFoundException('Entreprise introuvable');
 
-    return this.databaseService.userPassage.findMany({
+    return this.databaseService.passage.findMany({
       where: { companyId: company.id, userId: targetUserId },
       select: PASSAGE_SELECT,
-      orderBy: { date: 'desc' },
+      orderBy: { createdAt: 'desc' },
     });
   }
 }

@@ -4,6 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { ApplicationAnnouncementStatus } from '@prisma/client';
 import { DatabaseService } from '../database/database.service';
 import { CreateAnnonceDto } from './dto/create-annonce.dto';
 import { UpdateAnnonceDto } from './dto/update-annonce.dto';
@@ -12,21 +13,20 @@ const ANNONCE_SELECT = {
   id: true,
   title: true,
   description: true,
-  startDate: true,
-  endDate: true,
+  status: true,
   createdAt: true,
   createdBy: true,
-  tags: { select: { id: true, name: true } },
+  jobId: true,
   company: {
     select: {
       id: true,
-      description: true,
+      name: true,
       phone: true,
       type: true,
       address: {
         select: {
-          city: true,
-          country: true,
+          locality: true,
+          country: { select: { name: true } },
         },
       },
     },
@@ -47,15 +47,14 @@ export class AnnonceService {
       throw new NotFoundException('Entreprise introuvable ou non autorisee');
     }
 
-    return this.databaseService.job.create({
+    return this.databaseService.announcement.create({
       data: {
         title: dto.title,
         description: dto.description,
-        startDate: dto.startDate ? new Date(dto.startDate) : undefined,
-        endDate: dto.endDate ? new Date(dto.endDate) : undefined,
+        status: dto.status,
         createdBy: userId,
         companyId: dto.companyId,
-        tags: dto.tagIds?.length ? { connect: dto.tagIds.map((id) => ({ id })) } : undefined,
+        jobId: dto.jobId,
       },
       select: ANNONCE_SELECT,
     });
@@ -64,14 +63,12 @@ export class AnnonceService {
   async update(userId: string, id: number, dto: UpdateAnnonceDto) {
     await this.checkOwnership(userId, id);
 
-    return this.databaseService.job.update({
+    return this.databaseService.announcement.update({
       where: { id },
       data: {
         title: dto.title,
         description: dto.description,
-        startDate: dto.startDate ? new Date(dto.startDate) : undefined,
-        endDate: dto.endDate ? new Date(dto.endDate) : undefined,
-        tags: dto.tagIds !== undefined ? { set: dto.tagIds.map((id) => ({ id })) } : undefined,
+        status: dto.status,
       },
       select: ANNONCE_SELECT,
     });
@@ -80,21 +77,21 @@ export class AnnonceService {
   async remove(userId: string, id: number): Promise<void> {
     await this.checkOwnership(userId, id);
 
-    await this.databaseService.job.update({
+    await this.databaseService.announcement.update({
       where: { id },
       data: { deleted: true },
     });
   }
 
   findOne(id: number) {
-    return this.databaseService.job.findFirst({
+    return this.databaseService.announcement.findFirst({
       where: { id, deleted: false },
       select: ANNONCE_SELECT,
     });
   }
 
-  findAll(companyId?: number) {
-    return this.databaseService.job.findMany({
+  findAll(companyId?: string) {
+    return this.databaseService.announcement.findMany({
       where: {
         deleted: false,
         ...(companyId ? { companyId } : {}),
@@ -104,42 +101,52 @@ export class AnnonceService {
     });
   }
 
-  async assign(creatorId: string, jobId: number, targetUserId: string): Promise<void> {
-    // Vérifie que l'annonce existe et appartient au créateur.
-    await this.checkOwnership(creatorId, jobId);
+  async assign(creatorId: string, announcementId: number, targetUserId: string): Promise<void> {
+    await this.checkOwnership(creatorId, announcementId);
 
-    // Vérifie que le job n'a pas déjà un employé.
-    const jobWithEmployee = await this.databaseService.job.findFirst({
-      where: { id: jobId, deleted: false },
-      select: { employee: { select: { id: true } } },
-    });
-
-    if (jobWithEmployee?.employee) {
-      throw new ConflictException('Ce job est deja attribue a un convoyeur');
-    }
-
-    // Vérifie que le user cible existe et n'a pas déjà un job.
     const targetUser = await this.databaseService.user.findFirst({
       where: { id: targetUserId, deleted: false },
-      select: { id: true, jobId: true },
+      select: { id: true },
     });
 
     if (!targetUser) {
       throw new NotFoundException('Utilisateur introuvable');
     }
 
-    if (targetUser.jobId !== null) {
-      throw new ConflictException('Ce convoyeur a deja un job en cours');
-    }
-
-    await this.databaseService.user.update({
-      where: { id: targetUserId },
-      data: { jobId },
+    const existingApplication = await this.databaseService.applicationAnnouncement.findFirst({
+      where: { announcementId, userId: targetUserId, deleted: false },
+      select: { id: true },
     });
+
+    if (existingApplication) {
+      const alreadyConfirmed = await this.databaseService.applicationAnnouncement.findFirst({
+        where: { announcementId, status: ApplicationAnnouncementStatus.CONFIRMED, deleted: false },
+        select: { id: true },
+      });
+
+      if (alreadyConfirmed && alreadyConfirmed.id !== existingApplication.id) {
+        throw new ConflictException('Cette annonce a deja un candidat confirme');
+      }
+
+      await this.databaseService.applicationAnnouncement.update({
+        where: { id: existingApplication.id },
+        data: { status: ApplicationAnnouncementStatus.CONFIRMED, processedBy: creatorId, processedAt: new Date() },
+      });
+    } else {
+      await this.databaseService.applicationAnnouncement.create({
+        data: {
+          announcementId,
+          userId: targetUserId,
+          status: ApplicationAnnouncementStatus.CONFIRMED,
+          processedBy: creatorId,
+          processedAt: new Date(),
+        },
+      });
+    }
   }
 
   private async checkOwnership(userId: string, id: number): Promise<void> {
-    const annonce = await this.databaseService.job.findFirst({
+    const annonce = await this.databaseService.announcement.findFirst({
       where: { id, deleted: false },
       select: { createdBy: true },
     });

@@ -16,6 +16,15 @@ services:
       # Persiste les donnees entre redemarrages.
       - postgres_data:/var/lib/postgresql/data
 
+  pgadmin:
+    image: dpage/pgadmin4
+    restart: always
+    ports:
+      - "5050:80"
+    environment:
+      PGADMIN_DEFAULT_EMAIL: pierre.antoniutti+pgadmin@mail.com
+      PGADMIN_DEFAULT_PASSWORD: admininistratoruser
+
 volumes:
   # Volume nomme pour stocker les donnees postgres.
   postgres_data:

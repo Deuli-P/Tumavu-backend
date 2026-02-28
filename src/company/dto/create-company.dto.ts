@@ -1,28 +1,33 @@
 import { Type } from 'class-transformer';
-import { IsOptional, IsString, MinLength, ValidateNested } from 'class-validator';
+import { IsInt, IsOptional, IsPositive, IsString, MinLength, ValidateNested } from 'class-validator';
 
 class CreateCompanyAddressDto {
   @IsString()
   @MinLength(1)
   street!: string;
 
+  @IsOptional()
   @IsString()
-  @MinLength(1)
-  city!: string;
+  number?: string;
 
   @IsString()
   @MinLength(1)
-  zipCode!: string;
+  locality!: string;
 
-  @IsString()
-  @MinLength(1)
-  country!: string;
+  @IsInt()
+  @IsPositive()
+  countryId!: number;
 }
 
 export class CreateCompanyDto {
   @IsString()
   @MinLength(1)
   name!: string;
+
+  @IsOptional()
+  @IsString()
+  @MinLength(1)
+  description?: string;
 
   @IsOptional()
   @IsString()

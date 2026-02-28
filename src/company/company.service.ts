@@ -6,16 +6,16 @@ import { CreateBenefitDto } from './dto/create-benefit.dto';
 import { UpdateBenefitDto } from './dto/update-benefit.dto';
 
 export type CompanyPayload = {
-  id: number;
+  id: string;
   name: string;
+  description: string | null;
   phone: string | null;
   type: string | null;
   address: {
     street: string;
-    city: string;
-    zipCode: string;
-    country: string;
-    formattedAddress: string;
+    number: string | null;
+    locality: string;
+    country: { name: string; code: string };
   };
   owner: {
     id: string;
@@ -27,26 +27,25 @@ export class CompanyService {
   constructor(private readonly databaseService: DatabaseService) {}
 
   async createCompany(ownerId: string, dto: CreateCompanyDto): Promise<CompanyPayload> {
-    const formattedAddress = `${dto.address.street}, ${dto.address.zipCode} ${dto.address.city}, ${dto.address.country}`;
-
     const company = await this.databaseService.company.create({
       data: {
-        description: dto.name,
+        name: dto.name,
+        description: dto.description,
         phone: dto.phone,
         type: dto.type,
         owner: { connect: { id: ownerId } },
         address: {
           create: {
             street: dto.address.street,
-            city: dto.address.city,
-            zipCode: dto.address.zipCode,
-            country: dto.address.country,
-            formatted_address: formattedAddress,
+            number: dto.address.number,
+            locality: dto.address.locality,
+            country: { connect: { id: dto.address.countryId } },
           },
         },
       },
       select: {
         id: true,
+        name: true,
         description: true,
         phone: true,
         type: true,
@@ -54,10 +53,9 @@ export class CompanyService {
         address: {
           select: {
             street: true,
-            city: true,
-            zipCode: true,
-            country: true,
-            formatted_address: true,
+            number: true,
+            locality: true,
+            country: { select: { name: true, code: true } },
           },
         },
       },
@@ -65,15 +63,15 @@ export class CompanyService {
 
     return {
       id: company.id,
-      name: company.description ?? '',
+      name: company.name,
+      description: company.description,
       phone: company.phone,
       type: company.type,
       address: {
         street: company.address.street,
-        city: company.address.city,
-        zipCode: company.address.zipCode,
+        number: company.address.number,
+        locality: company.address.locality,
         country: company.address.country,
-        formattedAddress: company.address.formatted_address,
       },
       owner: {
         id: company.ownerId,
@@ -83,7 +81,7 @@ export class CompanyService {
 
   // ─── Vérification ownership ───────────────────────────────────────────────
 
-  private async checkOwnership(userId: string, companyId: number): Promise<void> {
+  private async checkOwnership(userId: string, companyId: string): Promise<void> {
     const company = await this.databaseService.company.findFirst({
       where: { id: companyId, deleted: false },
       select: { ownerId: true },
@@ -94,57 +92,93 @@ export class CompanyService {
 
   // ─── Options ──────────────────────────────────────────────────────────────
 
-  async upsertOptions(userId: string, companyId: number, dto: UpsertOptionsDto) {
+  async upsertOptions(userId: string, companyId: string, dto: UpsertOptionsDto) {
     await this.checkOwnership(userId, companyId);
 
     return this.databaseService.companyDefaultOptions.upsert({
       where: { companyId },
-      update: { maxPassagesPerDay: dto.maxPassagesPerDay },
-      create: { companyId, maxPassagesPerDay: dto.maxPassagesPerDay },
-      select: { id: true, companyId: true, maxPassagesPerDay: true },
+      update: { maximumPassagePerDay: dto.maximumPassagePerDay },
+      create: { companyId, maximumPassagePerDay: dto.maximumPassagePerDay },
+      select: { id: true, companyId: true, maximumPassagePerDay: true },
     });
   }
 
-  async getOptions(companyId: number) {
+  async getOptions(companyId: string) {
     return this.databaseService.companyDefaultOptions.findUnique({
       where: { companyId },
-      select: { id: true, companyId: true, maxPassagesPerDay: true },
+      select: { id: true, companyId: true, maximumPassagePerDay: true },
     });
   }
 
   // ─── Avantages ────────────────────────────────────────────────────────────
 
-  async createBenefit(userId: string, companyId: number, dto: CreateBenefitDto) {
+  async createBenefit(userId: string, companyId: string, dto: CreateBenefitDto) {
     await this.checkOwnership(userId, companyId);
 
-    return this.databaseService.companyBenefit.create({
-      data: { companyId, title: dto.title, description: dto.description, minPassages: dto.minPassages },
-      select: { id: true, title: true, description: true, minPassages: true, companyId: true },
+    return this.databaseService.benefit.create({
+      data: {
+        companyId,
+        name: dto.name,
+        description: dto.description,
+        quantity: dto.quantity,
+        duration: dto.duration,
+        startDate: dto.startDate ? new Date(dto.startDate) : undefined,
+      },
+      select: {
+        id: true,
+        name: true,
+        description: true,
+        quantity: true,
+        duration: true,
+        startDate: true,
+        companyId: true,
+      },
     });
   }
 
-  getBenefits(companyId: number) {
-    return this.databaseService.companyBenefit.findMany({
+  getBenefits(companyId: string) {
+    return this.databaseService.benefit.findMany({
       where: { companyId, deleted: false },
-      select: { id: true, title: true, description: true, minPassages: true },
-      orderBy: { minPassages: 'asc' },
+      select: {
+        id: true,
+        name: true,
+        description: true,
+        quantity: true,
+        duration: true,
+        startDate: true,
+      },
+      orderBy: { createdAt: 'asc' },
     });
   }
 
-  async updateBenefit(userId: string, companyId: number, benefitId: number, dto: UpdateBenefitDto) {
+  async updateBenefit(userId: string, companyId: string, benefitId: number, dto: UpdateBenefitDto) {
     await this.checkOwnership(userId, companyId);
 
-    return this.databaseService.companyBenefit.update({
+    return this.databaseService.benefit.update({
       where: { id: benefitId },
-      data: { title: dto.title, description: dto.description, minPassages: dto.minPassages },
-      select: { id: true, title: true, description: true, minPassages: true, companyId: true },
+      data: {
+        name: dto.name,
+        description: dto.description,
+        quantity: dto.quantity,
+        duration: dto.duration,
+        startDate: dto.startDate ? new Date(dto.startDate) : undefined,
+      },
+      select: {
+        id: true,
+        name: true,
+        description: true,
+        quantity: true,
+        duration: true,
+        startDate: true,
+        companyId: true,
+      },
     });
   }
 
-  async deleteBenefit(userId: string, companyId: number, benefitId: number): Promise<void> {
+  async deleteBenefit(userId: string, companyId: string, benefitId: number): Promise<void> {
     await this.checkOwnership(userId, companyId);
 
-    await this.databaseService.companyBenefit.update({
+    await this.databaseService.benefit.update({
       where: { id: benefitId },
       data: { deleted: true },
     });

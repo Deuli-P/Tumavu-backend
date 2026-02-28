@@ -1,15 +1,17 @@
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, RoleType } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
 // ─── Roles ────────────────────────────────────────────────────────────────────
 
-const roles = [
-  { label: 'ADMIN' },
-  { label: 'USER' },
-  { label: 'VIP' }
-
+const roles: Array<{ value: string; type: RoleType, parentId?: number }> = [
+  { value: 'Administrator', type: RoleType.ADMIN, parentId: 4  },
+  { value: 'User', type: RoleType.USER },
+  { value: 'Owner', type: RoleType.MANAGER },
+  { value: 'CEO', type: RoleType.ADMIN },
+  { value: 'Developper', type: RoleType.ADMIN, parentId: 4 },
 ];
+
 
 // ─── Countries ────────────────────────────────────────────────────────────────
 
@@ -56,8 +58,8 @@ const countries = [
   { name: 'MAURITANIA',          nativeName: 'موريتانيا',            code: 'MR', phoneIndicatif: '+222',  nationality: 'MAURITANIAN' },
   { name: 'MALI',                nativeName: 'Mali',                 code: 'ML', phoneIndicatif: '+223',  nationality: 'MALIAN' },
   { name: 'BURKINA_FASO',        nativeName: 'Burkina Faso',         code: 'BF', phoneIndicatif: '+226',  nationality: 'BURKINABE' },
-  { name: 'RÉPUBLIQUE_DÉMOCRATIQUE_DU_CONGO', nativeName: 'Congo', code: 'CD', phoneIndicatif: '+243', nationality: 'CONGOLESE' },
-  { name: 'CONGO',               nativeName: 'Congo',                code: 'CG', phoneIndicatif: '+242',  nationality: 'CONGOLESE' },
+  { name: 'RÉPUBLIQUE_DÉMOCRATIQUE_DU_CONGO', nativeName: 'Congo', code: 'CD', phoneIndicatif: '+243', nationality: 'CONGOLESE_DRC' },
+  { name: 'CONGO',               nativeName: 'Congo',                code: 'CG', phoneIndicatif: '+242',  nationality: 'CONGOLESE_RC' },
   { name: 'GABON',               nativeName: 'Gabon',                code: 'GA', phoneIndicatif: '+241',  nationality: 'GABONESE' },
   // Amériques
   { name: 'UNITED_STATES',          nativeName: 'United States',        code: 'US', phoneIndicatif: '+1',    nationality: 'AMERICAN' },
@@ -103,19 +105,69 @@ const languages = [
 // ─── Permissions ─────────────────────────────────────────────────────────────────────
 
 const permissions = [
-  { value: 'read_users',       label: 'READ_USERS' },
-  { value: 'write_users',      label: 'WRITE_USERS' },
-  { value: 'delete_users',     label: 'DELETE_USERS' },
-  { value: 'read_companies',   label: 'READ_COMPANIES' },
-  { value: 'write_companies',  label: 'WRITE_COMPANIES' },
-  { value: 'delete_companies', label: 'DELETE_COMPANIES' },
-  { value: 'read_roles',       label: 'READ_ROLES' },
-  { value: 'write_roles',      label: 'WRITE_ROLES' },
-  { value: 'delete_roles',     label: 'DELETE_ROLES' },
-  { value: 'create_jobs',      label: 'CREATE_JOBS' },
-  { value: 'update_jobs',      label: 'UPDATE_JOBS' },
-  { value: 'delete_jobs',      label: 'DELETE_JOBS' },
+  { value: 'read_users' },
+  { value: 'write_users' },
+  { value: 'delete_users' },
+  { value: 'read_companies' },
+  { value: 'write_companies' },
+  { value: 'delete_companies' },
+  { value: 'read_roles' },
+  { value: 'write_roles' },
+  { value: 'delete_roles' },
+  { value: 'create_jobs' },
+  { value: 'update_jobs' },
+  { value: 'delete_jobs' },
+  { value: 'apply_jobs' },
+  { value: 'upload_cv' },
+  { value: 'upload_cover_letter' },
+  { value: 'upload_photo' },
+
 ];
+// ─── Permissions-role ─────────────────────────────────────────────────────────────
+
+const permission_roles =[
+  { roleId: 1, permissionId: 1 },
+  { roleId: 1, permissionId: 2 },
+  { roleId: 1, permissionId: 3 },
+  { roleId: 1, permissionId: 4 },
+  { roleId: 1, permissionId: 5 },
+  { roleId: 1, permissionId: 6 },
+  { roleId: 1, permissionId: 7 },
+  { roleId: 1, permissionId: 8 },
+  { roleId: 1, permissionId: 9 },
+  { roleId: 1, permissionId: 10 },
+  { roleId: 1, permissionId: 11 },
+  { roleId: 1, permissionId: 12 },
+  { roleId: 2, permissionId: 13 },
+  { roleId: 2, permissionId: 14 },
+  { roleId: 2, permissionId: 15 },
+  { roleId: 4, permissionId: 1 },
+  { roleId: 4, permissionId: 2 },
+  { roleId: 4, permissionId: 3 },
+  { roleId: 4, permissionId: 4 },
+  { roleId: 4, permissionId: 5 },
+  { roleId: 4, permissionId: 6 },
+  { roleId: 4, permissionId: 7 },
+  { roleId: 4, permissionId: 8 },
+  { roleId: 4, permissionId: 9 },
+  { roleId: 4, permissionId: 10 },
+  { roleId: 4, permissionId: 11 },
+  { roleId: 4, permissionId: 12 },
+  { roleId: 5, permissionId: 1 },
+  { roleId: 5, permissionId: 2 },
+  { roleId: 5, permissionId: 3 },
+  { roleId: 5, permissionId: 4 },
+  { roleId: 5, permissionId: 5 },
+  { roleId: 5, permissionId: 6 },
+  { roleId: 5, permissionId: 7 },
+  { roleId: 5, permissionId: 8 },
+  { roleId: 5, permissionId: 9 },
+  { roleId: 5, permissionId: 10 },
+  { roleId: 5, permissionId: 11 },
+  { roleId: 5, permissionId: 12 },
+]
+
+
 // ─── Tags ─────────────────────────────────────────────────────────────────────
 
 const tags = [
@@ -153,7 +205,7 @@ async function main() {
   // Roles
   for (const role of roles) {
     await prisma.role.upsert({
-      where: { label: role.label },
+      where: { value: role.value },
       update: {},
       create: role,
     });
@@ -190,6 +242,24 @@ async function main() {
   }
   console.log(`  ✓ ${permissions.length} permissions inserees`);
 
+  // Permission - Roles
+
+
+  for (const pr of permission_roles) {
+    await prisma.permissionRole.upsert({
+      where: {
+        roleId_permissionId: {
+          roleId: pr.roleId,
+          permissionId: pr.permissionId,
+        },
+      },
+      update: {},
+      create: pr,
+    });
+  }
+  console.log(`  ✓ ${permission_roles.length} permissions-roles inserees`);
+
+  
   // Tags
 
   for (const tag of tags) {

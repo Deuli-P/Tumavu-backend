@@ -28,14 +28,14 @@ export class CompanyController {
   @Put(':id/options')
   upsertOptions(
     @CurrentUser() user: AuthenticatedRequestUser,
-    @Param('id', ParseIntPipe) id: number,
+    @Param('id') id: string,
     @Body() dto: UpsertOptionsDto,
   ) {
     return this.companyService.upsertOptions(user.userId, id, dto);
   }
 
   @Get(':id/options')
-  getOptions(@Param('id', ParseIntPipe) id: number) {
+  getOptions(@Param('id') id: string) {
     return this.companyService.getOptions(id);
   }
 
@@ -44,21 +44,21 @@ export class CompanyController {
   @Post(':id/benefit')
   createBenefit(
     @CurrentUser() user: AuthenticatedRequestUser,
-    @Param('id', ParseIntPipe) id: number,
+    @Param('id') id: string,
     @Body() dto: CreateBenefitDto,
   ) {
     return this.companyService.createBenefit(user.userId, id, dto);
   }
 
   @Get(':id/benefit')
-  getBenefits(@Param('id', ParseIntPipe) id: number) {
+  getBenefits(@Param('id') id: string) {
     return this.companyService.getBenefits(id);
   }
 
   @Put(':id/benefit/:benefitId')
   updateBenefit(
     @CurrentUser() user: AuthenticatedRequestUser,
-    @Param('id', ParseIntPipe) id: number,
+    @Param('id') id: string,
     @Param('benefitId', ParseIntPipe) benefitId: number,
     @Body() dto: UpdateBenefitDto,
   ) {
@@ -68,7 +68,7 @@ export class CompanyController {
   @Delete(':id/benefit/:benefitId')
   deleteBenefit(
     @CurrentUser() user: AuthenticatedRequestUser,
-    @Param('id', ParseIntPipe) id: number,
+    @Param('id') id: string,
     @Param('benefitId', ParseIntPipe) benefitId: number,
   ): Promise<void> {
     return this.companyService.deleteBenefit(user.userId, id, benefitId);

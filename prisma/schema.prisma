@@ -7,24 +7,24 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// ─── Enums ────────────────────────────────────────────────────────────────────
+
 enum DocumentStatus {
   ACTIVE
   ARCHIVED
 }
 
 enum ContractType {
-  CDI
+  RESORT
   CDD
-  INTERIM
+  CDI
   FREELANCE
   STAGE
-  ALTERNANCE
-  SAISONNIER
-  AUTRE
+  OTHER
 }
 
 enum MinimumEducationLevel {
-  AUCUNE
+  NONE
   CAP_BEP
   BACCALAUREAT
   BAC_PLUS_2
@@ -33,44 +33,33 @@ enum MinimumEducationLevel {
   DOCTORAT
 }
 
-enum HousingSupport {
-  NONE
-  PROVIDED
-  PROVIDED_AND_PAID
+enum JobStatus {
+  ACTIVE
+  CLOSED
+  PENDING
 }
 
-model User {
-  id            String    @id @default(uuid())
-  firstName     String    @map("firstname")
-  lastName      String    @map("lastname")
-  deleted       Boolean   @default(false)
-  updatedAt     DateTime  @updatedAt
-  roleId        Int?
-  role          Role?     @relation(fields: [roleId], references: [id])
-  photoPath     String?
-  phone         String?
-  city          String?
-  postalCode    String?   @map("postal_code")
-  country       String?
-  languageId    Int?      @map("language_id")
-  language      Language? @relation(fields: [languageId], references: [id])
-  notifications Boolean   @default(true)
-
-  auth Auth?
-
-  // Jobs créés
-  createdJobs Job[] @relation("CreatorJobs")
-
-  // Job occupé (1 seul)
-  jobId Int? @unique
-  job   Job? @relation("EmployeeJob", fields: [jobId], references: [id], onDelete: SetNull)
-
-  companies Company[]     @relation("CompanyOwner")
-  documents Document[]
-  passages  UserPassage[]
-
-  @@map("users")
+enum AnnouncementStatus {
+  CLOSED
+  ACTIVE
+  CANCELLED
 }
+
+enum ApplicationAnnouncementStatus {
+  CONFIRMED
+  REFUSED
+  INTERVIEW
+  SIGNATURE
+  CANCELLED
+}
+
+enum RoleType {
+  ADMIN
+  USER
+  MANAGER
+}
+
+// ─── Auth & Sessions ──────────────────────────────────────────────────────────
 
 model Auth {
   id           String    @id @default(uuid())
@@ -88,7 +77,7 @@ model Auth {
 }
 
 model Session {
-  id        Int      @id @default(autoincrement())
+  id        String   @id @default(uuid())
   tokenHash String   @unique @map("token_hash")
   expiresAt DateTime @map("expires_at")
   createdAt DateTime @default(now()) @map("created_at")
@@ -99,175 +88,275 @@ model Session {
   @@map("sessions")
 }
 
-model Job {
-  id        Int      @id @default(autoincrement())
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  deleted   Boolean  @default(false)
+// ─── Users ────────────────────────────────────────────────────────────────────
 
-  title              String
-  description        String?
-  contractType       ContractType?          @map("contract_type")
-  minimumEducation   MinimumEducationLevel? @map("minimum_education")
-  requiredExperience String?                @map("required_experience")
-  requiredLanguages  String[]               @default([]) @map("required_languages")
-  housingSupport     HousingSupport         @default(NONE) @map("housing_support")
-  startDate          DateTime?              @map("start_date")
-  endDate            DateTime?              @map("end_date")
-  // Créateur
-  createdBy          String
-  creator            User                   @relation("CreatorJobs", fields: [createdBy], references: [id])
+model User {
+  id            String   @id @default(uuid())
+  firstName     String   @map("firstname")
+  lastName      String   @map("lastname")
+  deleted       Boolean  @default(false)
+  updatedAt     DateTime @updatedAt
+  roleId        Int      @default(2)
+  role          Role     @relation(fields: [roleId], references: [id])
+  photoPath     String?
+  city          String?
+  postalCode    String?  @map("postal_code")
+  phone         String?
+  country       String?
+  languageId    Int?     @map("language_id")
+  language      Language? @relation(fields: [languageId], references: [id])
+  notifications Boolean  @default(true)
 
-  // Employé (1 seul user max)
-  employee User? @relation("EmployeeJob")
+  auth Auth?
 
-  //Tags
-  tags              Tag[]
-  skillRequirements JobSkillRequirement[]
+  companies     Company[]               @relation("CompanyOwner")
+  documents     Document[]
+  passages      Passage[]
+  createdJobs   Job[]                   @relation("CreatorJobs")
+  announcements Announcement[]          @relation("AnnouncementCreator")
+  applications  ApplicationAnnouncement[] @relation("ApplicantApplications")
+  processed     ApplicationAnnouncement[] @relation("ProcessorApplications")
 
-  companyId Int
-  company   Company       @relation(fields: [companyId], references: [id])
-  passages  UserPassage[]
-
-  @@map("jobs")
+  @@map("users")
 }
 
-model JobSkillRequirement {
-  id    Int    @id @default(autoincrement())
-  jobId Int    @map("job_id")
-  skill String
-  level Int
-
-  job Job @relation(fields: [jobId], references: [id], onDelete: Cascade)
-
-  @@index([jobId])
-  @@map("job_skill_requirements")
-}
+// ─── Companies ────────────────────────────────────────────────────────────────
 
 model Company {
-  id        Int      @id @default(autoincrement())
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  deleted   Boolean  @default(false)
-
-  ownerId     String
-  addressId   Int
+  id          String   @id @default(uuid())
+  name        String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  deleted     Boolean  @default(false)
+  ownerId     String   @map("owner_id")
+  addressId   Int      @map("address_id")
   description String?
-  phone       String?
   type        String?
+  phone       String?
 
-  owner          User?                  @relation("CompanyOwner", fields: [ownerId], references: [id])
-  address        Address                @relation(fields: [addressId], references: [id])
+  owner          User                  @relation("CompanyOwner", fields: [ownerId], references: [id])
+  address        Address               @relation(fields: [addressId], references: [id])
   jobs           Job[]
-  passages       UserPassage[]
+  passages       Passage[]
   defaultOptions CompanyDefaultOptions?
-  benefits       CompanyBenefit[]
+  companyBenefits CompanyBenefit[]
+  announcements   Announcement[]
+  benefitCatalog  Benefit[]
 
   @@map("companies")
 }
 
 model Address {
-  id                Int       @id @default(autoincrement())
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
-  deleted           Boolean   @default(false)
-  formatted_address String
-  street            String
-  city              String
-  country           String
-  zipCode           String
-  companies         Company[]
+  id        Int     @id @default(autoincrement())
+  street    String
+  number    String?
+  locality  String
+  countryId Int     @map("country_id")
+
+  country   Country   @relation(fields: [countryId], references: [id])
+  companies Company[]
 
   @@map("addresses")
 }
 
+// ─── Roles & Permissions ──────────────────────────────────────────────────────
+
 model Role {
-  id        Int      @id @default(autoincrement())
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  deleted   Boolean  @default(false)
-  parentId  Int?
-  label     String   @unique
-
-  parent   Role?  @relation("RoleHierarchy", fields: [parentId], references: [id])
-  children Role[] @relation("RoleHierarchy")
-
-  permissions Permission[]
-
-  users User[]
+  id       Int    @id @default(autoincrement())
+  value    String @unique
+  parentId Int?
+  type     RoleType @default(USER)
+  parent      Role?            @relation("RoleHierarchy", fields: [parentId], references: [id])
+  children    Role[]           @relation("RoleHierarchy")
+  permissions PermissionRole[]
+  users       User[]
 
   @@map("roles")
 }
 
 model Permission {
   id        Int      @id @default(autoincrement())
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  deleted   Boolean  @default(false)
   value     String   @unique
-  label     String
+  createdBy String?  @map("created_by")
+  createdAt DateTime @default(now())
 
-  roles Role[]
+  roles PermissionRole[]
 
   @@map("permissions")
 }
 
-model UserPassage {
-  id            Int      @id @default(autoincrement())
-  date          DateTime @db.Date
-  count         Int      @default(1)
-  lastPassageAt DateTime @map("last_passage_at")
+model PermissionRole {
+  id           Int     @id @default(autoincrement())
+  deleted      Boolean @default(false)
+  permissionId Int     @map("permission_id")
+  roleId       Int     @map("role_id")
 
-  userId    String @map("user_id")
-  companyId Int    @map("company_id")
-  jobId     Int?   @map("job_id")
+  permission Permission @relation(fields: [permissionId], references: [id])
+  role       Role       @relation(fields: [roleId], references: [id])
 
-  user    User    @relation(fields: [userId], references: [id])
-  company Company @relation(fields: [companyId], references: [id])
-  job     Job?    @relation(fields: [jobId], references: [id])
-
-  @@unique([userId, companyId, date])
-  @@map("user_passages")
+  @@unique([roleId, permissionId])
+  @@map("permission_role")
 }
 
+// ─── Jobs ─────────────────────────────────────────────────────────────────────
+
+model Job {
+  id           Int           @id @default(autoincrement())
+  title        String
+  description  String?
+  contractType ContractType? @map("contract_type")
+  status       JobStatus?
+  deleted      Boolean       @default(false)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  createdBy    String        @map("created_by")
+  companyId    String        @map("company_id")
+
+  company       Company        @relation(fields: [companyId], references: [id])
+  creator       User           @relation("CreatorJobs", fields: [createdBy], references: [id])
+  tags          TagJob[]
+  announcements Announcement[]
+
+  @@map("jobs")
+}
+
+model Tag {
+  id   Int    @id @default(autoincrement())
+  name String @unique
+
+  jobs TagJob[]
+
+  @@map("tags")
+}
+
+model TagJob {
+  id      Int     @id @default(autoincrement())
+  jobId   Int     @map("job_id")
+  tagId   Int     @map("tag_id")
+  deleted Boolean @default(false)
+
+  job Job @relation(fields: [jobId], references: [id])
+  tag Tag @relation(fields: [tagId], references: [id])
+
+  @@map("tag_job")
+}
+
+// ─── Announcements ────────────────────────────────────────────────────────────
+
+model Announcement {
+  id          Int                 @id @default(autoincrement())
+  title       String
+  description String?
+  createdBy   String              @map("created_by")
+  status      AnnouncementStatus?
+  deleted     Boolean             @default(false)
+  createdAt   DateTime            @default(now())
+  companyId   String?             @map("company_id")
+  jobId       Int?                @map("job_id")
+
+  creator      User     @relation("AnnouncementCreator", fields: [createdBy], references: [id])
+  company      Company? @relation(fields: [companyId], references: [id])
+  job          Job?     @relation(fields: [jobId], references: [id])
+  applications ApplicationAnnouncement[]
+
+  @@map("annoucements")
+}
+
+model ApplicationAnnouncement {
+  id             Int                            @id @default(autoincrement())
+  announcementId Int                            @map("announcement_id")
+  createdAt      DateTime                       @default(now())
+  userId         String                         @map("user_id")
+  status         ApplicationAnnouncementStatus?
+  deleted        Boolean                        @default(false)
+  processedBy    String?                        @map("processed_by")
+  processedAt    DateTime?                      @map("processed_at")
+
+  announcement Announcement @relation(fields: [announcementId], references: [id])
+  user         User         @relation("ApplicantApplications", fields: [userId], references: [id])
+  processor    User?        @relation("ProcessorApplications", fields: [processedBy], references: [id])
+
+  @@map("application_annoucments")
+}
+
+// ─── Benefits ─────────────────────────────────────────────────────────────────
+
+model Benefit {
+  id          Int       @id @default(autoincrement())
+  name        String
+  description String?
+  companyId   String    @map("company_id")
+  deleted     Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  quantity    Int?
+  duration    Int?
+  startDate   DateTime? @map("start_date")
+
+  company      Company        @relation(fields: [companyId], references: [id])
+  companyLinks CompanyBenefit[]
+
+  @@map("benefits")
+}
+
+model CompanyBenefit {
+  id        Int      @id @default(autoincrement())
+  companyId String   @map("company_id")
+  benefitId Int      @map("benefit_id")
+  createdAt DateTime @default(now())
+  deleted   Boolean  @default(false)
+
+  company Company @relation(fields: [companyId], references: [id])
+  benefit Benefit @relation(fields: [benefitId], references: [id])
+
+  @@map("company_benefit")
+}
+
+// ─── Company Options ──────────────────────────────────────────────────────────
+
 model CompanyDefaultOptions {
-  id                Int @id @default(autoincrement())
-  companyId         Int @unique @map("company_id")
-  maxPassagesPerDay Int @default(1) @map("max_passages_per_day")
+  id                   Int    @id @default(autoincrement())
+  companyId            String @unique @map("company_id")
+  maximumPassagePerDay Int    @default(1) @map("maximum_passage_per_day")
 
   company Company @relation(fields: [companyId], references: [id])
 
   @@map("company_default_options")
 }
 
-model CompanyBenefit {
-  id        Int      @id @default(autoincrement())
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  deleted   Boolean  @default(false)
+// ─── Passages ─────────────────────────────────────────────────────────────────
 
-  companyId   Int     @map("company_id")
-  title       String
-  description String?
-  minPassages Int     @default(1) @map("min_passages")
+model Passage {
+  id                  Int      @id @default(autoincrement())
+  userId              String   @map("user_id")
+  companyId           String   @map("company_id")
+  createdAt           DateTime @default(now()) @db.Date
+  lastPassageThisDay  DateTime? @map("last_passage_this_day")
+  countPassageThisDay Int      @default(0) @map("count_passage_this_day")
 
+  user    User    @relation(fields: [userId], references: [id])
   company Company @relation(fields: [companyId], references: [id])
 
-  @@map("company_benefits")
+  @@unique([userId, companyId, createdAt])
+  @@map("passages")
 }
+
+// ─── Documents ────────────────────────────────────────────────────────────────
 
 model Document {
   id        Int            @id @default(autoincrement())
   createdAt DateTime       @default(now())
+  deleted   Boolean        @default(false)
   slug      String
   status    DocumentStatus @default(ACTIVE)
-  deleted   Boolean        @default(false)
+  userId    String         @map("user_id")
 
-  userId String @map("user_id")
-  user   User   @relation(fields: [userId], references: [id])
+  user User @relation(fields: [userId], references: [id])
 
   @@map("documents")
 }
+
+// ─── Reference Data ───────────────────────────────────────────────────────────
 
 model Country {
   id             Int    @id @default(autoincrement())
@@ -275,26 +364,19 @@ model Country {
   nativeName     String @map("native_name")
   code           String @unique
   phoneIndicatif String @map("phone_indicatif")
-  nationality    String
+  nationality    String @unique
+
+  addresses Address[]
 
   @@map("countries")
 }
 
 model Language {
   id   Int    @id @default(autoincrement())
-  name String
   code String @unique
+  name String @unique
 
   users User[]
 
   @@map("languages")
-}
-
-model Tag {
-  id   Int    @id @default(autoincrement())
-  name String @unique
-
-  jobs Job[]
-
-  @@map("tags")
 }

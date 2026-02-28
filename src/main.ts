@@ -17,6 +17,10 @@ async function bootstrap(): Promise<void> {
 
   // Tous les endpoints seront prefixes par /api.
   app.setGlobalPrefix('api');
+  app.enableCors({
+    origin: true,
+    credentials: true,
+  });
   app.useStaticAssets(join(process.cwd(), 'uploads'), { prefix: '/uploads/' });
   // Validation globale des DTO (utile des qu'on ajoute des routes avec body/query).
   app.useGlobalPipes(

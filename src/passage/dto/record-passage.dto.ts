@@ -5,12 +5,4 @@ export class RecordPassageDto {
   @IsUUID()
   userId!: string;
 
-  @IsInt()
-  @IsPositive()
-  companyId!: number;
-
-  @IsOptional()
-  @IsInt()
-  @IsPositive()
-  jobId?: number;
 }

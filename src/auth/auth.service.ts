@@ -1,6 +1,6 @@
-import { BadRequestException, ConflictException, Injectable, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { DatabaseService } from '../database/database.service';
-import { LoginDto } from './dto/login.dto';
+import { LoginAs, LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 import { PasswordService } from './password.service';
 import { TokenService } from './token.service';
@@ -26,6 +26,7 @@ export type AuthPayload = {
       photoUrl: string | null;
       email: string;
       created_at: string;
+      roleId: number;
       phone: string | null;
     };
     company: {
@@ -33,9 +34,8 @@ export type AuthPayload = {
       phone: string | null;
       type: string | null;
       address: {
-        city: string;
+        locality: string;
         street: string;
-        postalCode: string;
         country: string;
       };
     } | null;
@@ -73,10 +73,7 @@ export class AuthService {
     }
 
     const passwordHash = await this.passwordService.hash(dto.password);
-    const defaultRole = await this.databaseService.role.findFirst({
-      where: { label: 'USER', deleted: false },
-      select: { id: true },
-    });
+
 
     const created = await this.databaseService.auth.create({
       data: {
@@ -88,7 +85,7 @@ export class AuthService {
             lastName: dto.lastName,
             phone: dto.phone,
             city: dto.address.city,
-            roleId: defaultRole?.id,
+            roleId: 2, // Par défaut, le rôle est "Utilisateur" (id = 2)
           },
         },
       },
@@ -119,6 +116,8 @@ export class AuthService {
   }
 
   async login(dto: LoginDto): Promise<AuthPayload> {
+    const loginAs: LoginAs = dto.as ?? 'USER';
+
     const credentials = await this.databaseService.auth.findFirst({
       where: { email: dto.email, deleted: false },
       select: { id: true, password: true },
@@ -133,6 +132,25 @@ export class AuthService {
       throw new UnauthorizedException('Email ou mot de passe invalide');
     }
 
+    const userInfo = await this.databaseService.user.findFirst({
+      where: { id: credentials.id, deleted: false },
+      select: { roleId: true },
+    });
+
+    if (!userInfo) {
+      throw new UnauthorizedException('Utilisateur introuvable');
+    }
+
+    // Vérifie le rôle via une requête directe AVANT de toucher les sessions.
+    // auth.id = user.id (relation 1:1 par même UUID).
+    const isAdmin = this.hasAdminRole(userInfo.roleId);
+    const ownedCompanyCount = await this.databaseService.company.count({
+      where: { ownerId: credentials.id, deleted: false },
+    });
+    const isCompanyOwner = ownedCompanyCount > 0;
+
+    this.assertLoginAs(loginAs, isAdmin, isCompanyOwner);
+
     // Révoque l'ancienne session et met à jour la date de connexion.
     await this.databaseService.$transaction([
       this.databaseService.session.deleteMany({ where: { authId: credentials.id } }),
@@ -145,6 +163,26 @@ export class AuthService {
     const payload = await this.getMe(credentials.id);
     await this.saveSession(credentials.id, payload.token);
     return payload;
+  }
+
+  private assertLoginAs(loginAs: LoginAs, isAdmin: boolean, isCompanyOwner: boolean): void {
+    if (loginAs === 'USER' && isAdmin) {
+      throw new ForbiddenException('Utilisez le portail administrateur pour vous connecter');
+    }
+    if (loginAs === 'USER' && isCompanyOwner) {
+      throw new ForbiddenException('Utilisez le portail entreprise pour vous connecter');
+    }
+    if (loginAs === 'COMPANY' && !isCompanyOwner) {
+      throw new ForbiddenException('Aucune entreprise associée à ce compte');
+    }
+    if (loginAs === 'ADMIN' && !isAdmin) {
+      throw new ForbiddenException('Accès administrateur refusé');
+    }
+  }
+
+  // Chercher si l'utilisateur a le users.roleId === 1
+  private hasAdminRole(roleId: number) {
+    return roleId === 1;
   }
 
   async logout(token: string): Promise<void> {
@@ -175,6 +213,7 @@ export class AuthService {
             photoPath: true,
             phone: true,
             city: true,
+            roleId: true,
             postalCode: true,
             country: true,
             language: { select: { id: true, code: true } },
@@ -182,15 +221,14 @@ export class AuthService {
             companies: {
               where: { deleted: false },
               select: {
-                description: true,
+                name: true,
                 phone: true,
                 type: true,
                 address: {
                   select: {
-                    city: true,
+                    locality: true,
                     street: true,
-                    zipCode: true,
-                    country: true,
+                    country: { select: { name: true } },
                   },
                 },
               },
@@ -230,17 +268,17 @@ export class AuthService {
           email: auth.email,
           created_at: auth.createdAt.toISOString(),
           phone: user.phone,
+          roleId: user.roleId,
         },
         company: company
           ? {
-              name: company.description ?? '',
+              name: company.name,
               phone: company.phone,
               type: company.type,
               address: {
-                city: company.address.city,
+                locality: company.address.locality,
                 street: company.address.street,
-                postalCode: company.address.zipCode,
-                country: company.address.country,
+                country: company.address.country.name,
               },
             }
           : null,

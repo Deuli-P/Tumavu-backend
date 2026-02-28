@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, ParseIntPipe, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
 import { AuthenticatedGuard } from '../auth/guards/authenticated.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { AuthenticatedRequestUser } from '../auth/auth-user.interface';
@@ -12,13 +12,16 @@ export class PassageController {
 
   // Appelé quand le scanner de la company scanne le QR code d'un user.
   @Post()
-  record(@Body() dto: RecordPassageDto) {
-    return this.passageService.record(dto);
+  record(
+    @CurrentUser() user: AuthenticatedRequestUser,
+    @Body() dto: RecordPassageDto,
+  ) {
+    return this.passageService.record(user.userId, dto);
   }
 
   @Get()
   findAll(
-    @Query('companyId', new ParseIntPipe({ optional: true })) companyId?: number,
+    @Query('companyId') companyId?: string,
     @Query('userId') userId?: string,
     @Query('date') date?: string,
   ) {

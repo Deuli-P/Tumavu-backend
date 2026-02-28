@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Body, Injectable } from '@nestjs/common';
 import { DatabaseService } from '../database/database.service';
 
 @Injectable()
@@ -13,4 +13,9 @@ export class SettingsService {
 
     return { languages };
   }
+
+  async updateNotifications(notifications: boolean ) {
+    // TODO: Update the user's notification settings in the database
+    return { message: 'Notification settings updated successfully' };
+  };
 }

@@ -1,10 +1,10 @@
-import { IsInt, IsOptional, IsString, Min, MinLength } from 'class-validator';
+import { IsDateString, IsInt, IsOptional, IsString, Min, MinLength } from 'class-validator';
 
 export class UpdateBenefitDto {
   @IsOptional()
   @IsString()
   @MinLength(1)
-  title?: string;
+  name?: string;
 
   @IsOptional()
   @IsString()
@@ -13,6 +13,15 @@ export class UpdateBenefitDto {
 
   @IsOptional()
   @IsInt()
+  @Min(0)
+  quantity?: number;
+
+  @IsOptional()
+  @IsInt()
   @Min(1)
-  minPassages?: number;
+  duration?: number;
+
+  @IsOptional()
+  @IsDateString()
+  startDate?: string;
 }
