@@ -48,10 +48,28 @@ export class AuthController {
     ;
   }
 
+  @UseGuards(GuestOnlyGuard)
+  @Post('login/admin')
+  async loginAdmin(
+    @Body() dto: LoginDto,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<void> {
+    const token = await this.authService.loginAdmin(dto);
+    this.setCookie(res, token);
+  }
+
   @UseGuards(AuthenticatedGuard)
   @Get('me')
   me(@CurrentUser() user: AuthenticatedRequestUser): Promise<UserInfo> {
     return this.authService.getMe(user.authId);
+  }
+
+  @UseGuards(AuthenticatedGuard)
+  @Get('me-admin')
+  async meAdmin(
+    @CurrentUser() user: AuthenticatedRequestUser,
+  ): Promise<UserInfo> {
+    return this.authService.getMeAdmin(user.authId);
   }
 
   @UseGuards(AuthenticatedGuard)

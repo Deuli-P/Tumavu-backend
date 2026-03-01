@@ -15,7 +15,6 @@ export class AuthenticatedGuard implements CanActivate {
   async canActivate(context: ExecutionContext): Promise<boolean> {
     // On prend les cookies 
     const request = context.switchToHttp().getRequest();
-    console.log('request cookies :', request);
     const token = request.cookies?.[COOKIE_NAME] as string | undefined;
 
 
@@ -52,6 +51,9 @@ export class AuthenticatedGuard implements CanActivate {
             id: true,
             firstName: true,
             lastName: true,
+            role: {
+              select: { type: true },
+            },
             companies: {
               where: { deleted: false },
               select: { id: true },
@@ -62,24 +64,22 @@ export class AuthenticatedGuard implements CanActivate {
       },
     });
 
+    console.log('auth trouvé :', auth);
+
     if (!auth?.user) {
       throw new UnauthorizedException('Utilisateur introuvable');
     }
 
-    const adminEmails = (process.env.ADMIN_EMAILS ?? '')
-      .split(',')
-      .map((v) => v.trim().toLowerCase())
-      .filter(Boolean);
 
     const userContext: AuthenticatedRequestUser = {
-      authId: auth.id,
-      userId: auth.user.id,
-      email: auth.email,
-      firstName: auth.user.firstName,
-      lastName: auth.user.lastName,
-      isCompanyOwner: auth.user.companies.length > 0,
-      isAdmin: adminEmails.includes(auth.email.toLowerCase()),
-    };
+    authId: auth.id,
+    userId: auth.user.id,
+    email: auth.email,
+    firstName: auth.user.firstName,
+    lastName: auth.user.lastName,
+    isCompanyOwner: auth.user.companies.length > 0,
+    isAdmin: auth.user.role.type === 'ADMIN',
+  };
 
     request.user = userContext;
     return true;

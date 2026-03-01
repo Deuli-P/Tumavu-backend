@@ -356,6 +356,17 @@ model Document {
   @@map("documents")
 }
 
+// ─── Stations ───────────────────────────────────────────────────────────
+
+
+modal Station {
+  id Int @id @default(autoincrement())
+  createdAt DateTime @default(now())
+
+
+  @@map("stations")
+}
+
 // ─── Reference Data ───────────────────────────────────────────────────────────
 
 model Country {

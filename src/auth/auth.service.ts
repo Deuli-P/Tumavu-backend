@@ -146,9 +146,74 @@ export class AuthService {
     return token;
   }
 
+  async loginAdmin(dto: LoginDto): Promise<string> {
+    const credentials = await this.databaseService.auth.findFirst({
+      where: { email: dto.email, deleted: false },
+      select: { id: true, password: true },
+    });
+
+    if (!credentials) {
+      throw new UnauthorizedException('Email ou mot de passe invalide');
+    }
+
+    const passwordOk = await this.passwordService.verify(dto.password, credentials.password);
+    if (!passwordOk) {
+      throw new UnauthorizedException('Email ou mot de passe invalide');
+    }
+
+    const user = await this.databaseService.user.findFirst({
+      where: { id: credentials.id, deleted: false },
+      select: {
+        role: { select: { type: true } },
+      },
+    });
+
+    if (!user || user.role.type !== 'ADMIN') {
+      throw new ForbiddenException('Accès administrateur refusé');
+    }
+
+    await this.databaseService.session.deleteMany({
+      where: { authId: credentials.id },
+    });
+
+    const token = this.tokenService.signAuthToken(credentials.id);
+    await this.saveSession(credentials.id, token);
+
+    return token;
+  }
+
   async getMe(authId: string): Promise<UserInfo> {
     return this.buildUserInfo(authId);
   }
+
+  async getMeAdmin(authId: string): Promise<UserInfo> {
+    const userInfo = await this.buildUserInfo(authId);
+
+    if (userInfo.info.role.type !== 'ADMIN') {
+      throw new ForbiddenException('Accès administrateur requis');
+    }
+
+    return {
+      id: userInfo.id,
+      info: {
+        firstName: userInfo.info.firstName,
+        lastName: userInfo.info.lastName,
+        city: null,
+        postalCode: null,
+        country: userInfo.info.country,
+        photoUrl: userInfo.info.photoUrl,
+        email: userInfo.info.email,
+        createdAt: userInfo.info.createdAt,
+        role: userInfo.info.role,
+        phone: null,
+      },
+      company: null,
+      setup: {
+        language: userInfo.setup.language,
+        notifications: userInfo.setup.notifications,
+      },
+    };
+  };
 
   async logout(token: string): Promise<void> {
     const tokenHash = this.tokenService.hashToken(token);
