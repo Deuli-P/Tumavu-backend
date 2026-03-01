@@ -123,24 +123,28 @@ model User {
 // ─── Companies ────────────────────────────────────────────────────────────────
 
 model Company {
-  id          String   @id @default(uuid())
-  name        String
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  deleted     Boolean  @default(false)
-  ownerId     String   @map("owner_id")
-  addressId   Int      @map("address_id")
+  id String @id @default(uuid())
+  name String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  deleted Boolean @default(false)
+  ownerId String @map("owner_id")
+  addressId Int @map("address_id")
   description String?
-  type        String?
-  phone       String?
+  type String?
+  phone String?
 
-  owner          User                  @relation("CompanyOwner", fields: [ownerId], references: [id])
-  address        Address               @relation(fields: [addressId], references: [id])
-  jobs           Job[]
-  passages       Passage[]
+  stationId Int @map("station_id")
+  station Station  @relation(fields: [stationId], references: [id])
+
+  owner User @relation("CompanyOwner", fields: [ownerId], references: [id])
+  address Address @relation(fields: [addressId], references: [id])
+
+  jobs Job[]
+  passages Passage[]
   defaultOptions CompanyDefaultOptions?
   companyBenefits CompanyBenefit[]
-  announcements   Announcement[]
+  announcements Announcement[]
   benefitCatalog  Benefit[]
 
   @@map("companies")
@@ -155,6 +159,7 @@ model Address {
 
   country   Country   @relation(fields: [countryId], references: [id])
   companies Company[]
+  stationsAsOffice Station[] @relation("StationOfficeAddress")
 
   @@map("addresses")
 }
@@ -359,10 +364,18 @@ model Document {
 // ─── Stations ───────────────────────────────────────────────────────────
 
 
-modal Station {
-  id Int @id @default(autoincrement())
-  createdAt DateTime @default(now())
+model Station {
+  id              Int      @id @default(autoincrement())
+  createdAt        DateTime @default(now())
+  deleted          Boolean  @default(false)
 
+  countryId        Int      @map("country_id")
+  officeAddressId  Int      @map("office_address_id")
+
+  country          Country  @relation(fields: [countryId], references: [id])
+  officeAddress    Address  @relation("StationOfficeAddress", fields: [officeAddressId], references: [id])
+
+  companies        Company[]
 
   @@map("stations")
 }
@@ -378,9 +391,11 @@ model Country {
   nationality    String @unique
 
   addresses Address[]
+  stations  Station[]
 
   @@map("countries")
 }
+
 
 model Language {
   id   Int    @id @default(autoincrement())
