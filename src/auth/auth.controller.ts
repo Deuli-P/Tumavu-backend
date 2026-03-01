@@ -1,79 +1,84 @@
 import {
-  BadRequestException,
   Body,
   Controller,
   Get,
   HttpCode,
   Post,
   Req,
-  UploadedFile,
+  Res,
   UseGuards,
-  UseInterceptors,
 } from '@nestjs/common';
-import { Request } from 'express';
-import { FileInterceptor } from '@nestjs/platform-express';
-import { AuthPayload, AuthService } from './auth.service';
+import { Request, Response } from 'express';
+import { AuthService, UserInfo } from './auth.service';
 import { CurrentUser } from './decorators/current-user.decorator';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 import { AuthenticatedRequestUser } from './auth-user.interface';
 import { AuthenticatedGuard } from './guards/authenticated.guard';
 import { GuestOnlyGuard } from './guards/guest-only.guard';
-import { memoryStorage } from 'multer';
+import { TokenService } from './token.service';
 
-const MAX_PHOTO_SIZE_BYTES = 5 * 1024 * 1024;
-type UploadedPhoto = {
-  buffer: Buffer;
-  mimetype: string;
-  originalname?: string;
-  size?: number;
-};
+const COOKIE_NAME = 'auth_token';
 
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(
+    private readonly authService: AuthService,
+    private readonly tokenService: TokenService,
+  ) {}
 
-  // Route reservee aux non connectes.
   @UseGuards(GuestOnlyGuard)
   @Post('register')
-  @UseInterceptors(
-    FileInterceptor('photo', {
-      storage: memoryStorage(),
-      limits: { fileSize: MAX_PHOTO_SIZE_BYTES },
-      fileFilter: (req, file, callback) => {
-        if (!file.mimetype.startsWith('image/')) {
-          return callback(new BadRequestException('Le fichier doit etre une image'), false);
-        }
-        callback(null, true);
-      },
-    }),
-  )
-  register(
+  async register(
     @Body() dto: RegisterDto,
-    @UploadedFile() photo?: UploadedPhoto,
-  ): Promise<AuthPayload> {
-    return this.authService.register(dto, photo);
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<void> {
+    const  token  = await this.authService.register(dto);
+    return this.setCookie(res, token);
   }
 
-  // Route reservee aux non connectes.
   @UseGuards(GuestOnlyGuard)
   @Post('login')
-  login(@Body() dto: LoginDto): Promise<AuthPayload> {
-    return this.authService.login(dto);
+  async login(
+    @Body() dto: LoginDto,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<void> {
+    const token = await this.authService.login(dto);
+    return this.setCookie(res, token);
+    ;
   }
 
-  // Route reservee aux connectes. Retourne les infos completes du convoyeur.
   @UseGuards(AuthenticatedGuard)
   @Get('me')
-  me(@CurrentUser() user: AuthenticatedRequestUser): Promise<AuthPayload> {
+  me(@CurrentUser() user: AuthenticatedRequestUser): Promise<UserInfo> {
     return this.authService.getMe(user.authId);
   }
 
   @UseGuards(AuthenticatedGuard)
   @Post('logout')
   @HttpCode(200)
-  logout(@Req() req: Request): Promise<void> {
-    const token = (req.headers.authorization as string).slice(7);
-    return this.authService.logout(token);
+  async logout(
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<void> {
+    const token = req.cookies?.[COOKIE_NAME] as string | undefined;
+    res.clearCookie(COOKIE_NAME, { path: '/' });
+    if (token) {
+      await this.authService.logout(token);
+    }
   }
+
+  // ─── Privé ────────────────────────────────────────────────────────────────────
+
+  private setCookie(res: Response, token: string): void {
+  const isProd = process.env.NODE_ENV === 'production';
+
+  res.cookie(COOKIE_NAME, token, {
+    httpOnly: true,
+    secure: false,            // en dev HTTP
+    sameSite: 'lax',          // ok si on corrige le proxy (voir plus bas)
+    maxAge: this.tokenService.ttlSeconds * 1000,
+    path: '/',
+  });
+}
 }

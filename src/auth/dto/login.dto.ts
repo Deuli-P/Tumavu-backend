@@ -1,6 +1,6 @@
 import { IsEmail, IsEnum, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
 
-export type LoginAs = 'USER' | 'COMPANY' | 'ADMIN';
+export type LoginAs = 'USER' | 'MANAGER' | 'ADMIN';
 
 // Payload de connexion.
 export class LoginDto {

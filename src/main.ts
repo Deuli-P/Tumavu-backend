@@ -3,6 +3,7 @@ import { NestFactory } from '@nestjs/core';
 import { ConfigService } from '@nestjs/config';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { join } from 'path';
+import * as cookieParser from 'cookie-parser';
 import { AppModule } from './app.module';
 import { PrismaService } from './prisma/prisma.service';
 
@@ -17,10 +18,15 @@ async function bootstrap(): Promise<void> {
 
   // Tous les endpoints seront prefixes par /api.
   app.setGlobalPrefix('api');
+  const allowedOrigins = process.env.FRONTEND_URL
+    ? process.env.FRONTEND_URL.split(',').map((o) => o.trim())
+    : ['http://localhost:5173'];
   app.enableCors({
-    origin: true,
+    origin: ['http://localhost:5173'],
     credentials: true,
   });
+  app.use(cookieParser());
+
   app.useStaticAssets(join(process.cwd(), 'uploads'), { prefix: '/uploads/' });
   // Validation globale des DTO (utile des qu'on ajoute des routes avec body/query).
   app.useGlobalPipes(

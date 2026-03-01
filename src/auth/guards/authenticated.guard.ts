@@ -3,6 +3,8 @@ import { DatabaseService } from '../../database/database.service';
 import { AuthenticatedRequestUser } from '../auth-user.interface';
 import { TokenService } from '../token.service';
 
+const COOKIE_NAME = 'auth_token';
+
 @Injectable()
 export class AuthenticatedGuard implements CanActivate {
   constructor(
@@ -10,17 +12,18 @@ export class AuthenticatedGuard implements CanActivate {
     private readonly databaseService: DatabaseService,
   ) {}
 
-  // Verifie le token, puis charge auth + user depuis la DB.
-  // C'est ici qu'on respecte la separation: auth = identifiants, users = profil.
   async canActivate(context: ExecutionContext): Promise<boolean> {
+    // On prend les cookies 
     const request = context.switchToHttp().getRequest();
-    const authHeader = request.headers.authorization as string | undefined;
+    console.log('request cookies :', request);
+    const token = request.cookies?.[COOKIE_NAME] as string | undefined;
 
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+
+    // Si pas de token => pas authentifié
+    if (!token) {
       throw new UnauthorizedException('Token manquant');
     }
 
-    const token = authHeader.slice(7);
     const payload = this.tokenService.verifyAuthToken(token);
 
     // Vérifie que la session existe en base (permet la déconnexion côté serveur).
@@ -31,19 +34,16 @@ export class AuthenticatedGuard implements CanActivate {
     });
 
     if (!session) {
-      throw new UnauthorizedException('Session invalide ou expiree');
+      throw new UnauthorizedException('Session invalide ou expirée');
     }
 
     if (session.expiresAt < new Date()) {
       await this.databaseService.session.deleteMany({ where: { tokenHash } });
-      throw new UnauthorizedException('Token expire');
+      throw new UnauthorizedException('Token expiré');
     }
 
     const auth = await this.databaseService.auth.findFirst({
-      where: {
-        id: payload.sub,
-        deleted: false,
-      },
+      where: { id: payload.sub, deleted: false },
       select: {
         id: true,
         email: true,
@@ -62,13 +62,13 @@ export class AuthenticatedGuard implements CanActivate {
       },
     });
 
-    if (!auth || !auth.user) {
+    if (!auth?.user) {
       throw new UnauthorizedException('Utilisateur introuvable');
     }
 
     const adminEmails = (process.env.ADMIN_EMAILS ?? '')
       .split(',')
-      .map((value) => value.trim().toLowerCase())
+      .map((v) => v.trim().toLowerCase())
       .filter(Boolean);
 
     const userContext: AuthenticatedRequestUser = {

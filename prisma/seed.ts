@@ -4,12 +4,12 @@ const prisma = new PrismaClient();
 
 // ─── Roles ────────────────────────────────────────────────────────────────────
 
-const roles: Array<{ value: string; type: RoleType, parentId?: number }> = [
-  { value: 'Administrator', type: RoleType.ADMIN, parentId: 4  },
+const roles: Array<{ value: string; type: RoleType }> = [
+  { value: 'Administrator', type: RoleType.ADMIN},
   { value: 'User', type: RoleType.USER },
   { value: 'Owner', type: RoleType.MANAGER },
   { value: 'CEO', type: RoleType.ADMIN },
-  { value: 'Developper', type: RoleType.ADMIN, parentId: 4 },
+  { value: 'Developper', type: RoleType.ADMIN},
 ];
 
 
@@ -124,47 +124,52 @@ const permissions = [
 
 ];
 // ─── Permissions-role ─────────────────────────────────────────────────────────────
+// Defined by role value (not id) to avoid hardcoded auto-increment assumptions.
 
-const permission_roles =[
-  { roleId: 1, permissionId: 1 },
-  { roleId: 1, permissionId: 2 },
-  { roleId: 1, permissionId: 3 },
-  { roleId: 1, permissionId: 4 },
-  { roleId: 1, permissionId: 5 },
-  { roleId: 1, permissionId: 6 },
-  { roleId: 1, permissionId: 7 },
-  { roleId: 1, permissionId: 8 },
-  { roleId: 1, permissionId: 9 },
-  { roleId: 1, permissionId: 10 },
-  { roleId: 1, permissionId: 11 },
-  { roleId: 1, permissionId: 12 },
-  { roleId: 2, permissionId: 13 },
-  { roleId: 2, permissionId: 14 },
-  { roleId: 2, permissionId: 15 },
-  { roleId: 4, permissionId: 1 },
-  { roleId: 4, permissionId: 2 },
-  { roleId: 4, permissionId: 3 },
-  { roleId: 4, permissionId: 4 },
-  { roleId: 4, permissionId: 5 },
-  { roleId: 4, permissionId: 6 },
-  { roleId: 4, permissionId: 7 },
-  { roleId: 4, permissionId: 8 },
-  { roleId: 4, permissionId: 9 },
-  { roleId: 4, permissionId: 10 },
-  { roleId: 4, permissionId: 11 },
-  { roleId: 4, permissionId: 12 },
-  { roleId: 5, permissionId: 1 },
-  { roleId: 5, permissionId: 2 },
-  { roleId: 5, permissionId: 3 },
-  { roleId: 5, permissionId: 4 },
-  { roleId: 5, permissionId: 5 },
-  { roleId: 5, permissionId: 6 },
-  { roleId: 5, permissionId: 7 },
-  { roleId: 5, permissionId: 8 },
-  { roleId: 5, permissionId: 9 },
-  { roleId: 5, permissionId: 10 },
-  { roleId: 5, permissionId: 11 },
-  { roleId: 5, permissionId: 12 },
+const permission_roles_by_value: Array<{ roleValue: string; permissionId: number }> = [
+  // Administrator — full access
+  { roleValue: 'Administrator', permissionId: 1 },
+  { roleValue: 'Administrator', permissionId: 2 },
+  { roleValue: 'Administrator', permissionId: 3 },
+  { roleValue: 'Administrator', permissionId: 4 },
+  { roleValue: 'Administrator', permissionId: 5 },
+  { roleValue: 'Administrator', permissionId: 6 },
+  { roleValue: 'Administrator', permissionId: 7 },
+  { roleValue: 'Administrator', permissionId: 8 },
+  { roleValue: 'Administrator', permissionId: 9 },
+  { roleValue: 'Administrator', permissionId: 10 },
+  { roleValue: 'Administrator', permissionId: 11 },
+  { roleValue: 'Administrator', permissionId: 12 },
+  // User — basic permissions
+  { roleValue: 'User', permissionId: 13 },
+  { roleValue: 'User', permissionId: 14 },
+  { roleValue: 'User', permissionId: 15 },
+  // CEO — full access
+  { roleValue: 'CEO', permissionId: 1 },
+  { roleValue: 'CEO', permissionId: 2 },
+  { roleValue: 'CEO', permissionId: 3 },
+  { roleValue: 'CEO', permissionId: 4 },
+  { roleValue: 'CEO', permissionId: 5 },
+  { roleValue: 'CEO', permissionId: 6 },
+  { roleValue: 'CEO', permissionId: 7 },
+  { roleValue: 'CEO', permissionId: 8 },
+  { roleValue: 'CEO', permissionId: 9 },
+  { roleValue: 'CEO', permissionId: 10 },
+  { roleValue: 'CEO', permissionId: 11 },
+  { roleValue: 'CEO', permissionId: 12 },
+  // Developper — full access
+  { roleValue: 'Developper', permissionId: 1 },
+  { roleValue: 'Developper', permissionId: 2 },
+  { roleValue: 'Developper', permissionId: 3 },
+  { roleValue: 'Developper', permissionId: 4 },
+  { roleValue: 'Developper', permissionId: 5 },
+  { roleValue: 'Developper', permissionId: 6 },
+  { roleValue: 'Developper', permissionId: 7 },
+  { roleValue: 'Developper', permissionId: 8 },
+  { roleValue: 'Developper', permissionId: 9 },
+  { roleValue: 'Developper', permissionId: 10 },
+  { roleValue: 'Developper', permissionId: 11 },
+  { roleValue: 'Developper', permissionId: 12 },
 ]
 
 
@@ -243,21 +248,25 @@ async function main() {
   console.log(`  ✓ ${permissions.length} permissions inserees`);
 
   // Permission - Roles
+  const roleMap = new Map<string, number>();
+  const allRoles = await prisma.role.findMany({ select: { id: true, value: true } });
+  for (const r of allRoles) roleMap.set(r.value, r.id);
 
-
-  for (const pr of permission_roles) {
+  let prCount = 0;
+  for (const pr of permission_roles_by_value) {
+    const roleId = roleMap.get(pr.roleValue);
+    if (!roleId) {
+      console.warn(`  ⚠ Role "${pr.roleValue}" introuvable, ligne ignorée`);
+      continue;
+    }
     await prisma.permissionRole.upsert({
-      where: {
-        roleId_permissionId: {
-          roleId: pr.roleId,
-          permissionId: pr.permissionId,
-        },
-      },
+      where: { roleId_permissionId: { roleId, permissionId: pr.permissionId } },
       update: {},
-      create: pr,
+      create: { roleId, permissionId: pr.permissionId },
     });
+    prCount++;
   }
-  console.log(`  ✓ ${permission_roles.length} permissions-roles inserees`);
+  console.log(`  ✓ ${prCount} permissions-roles inserees`);
 
   
   // Tags

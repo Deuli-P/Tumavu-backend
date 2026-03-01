@@ -1,53 +1,45 @@
-import { BadRequestException, ConflictException, ForbiddenException, Injectable, UnauthorizedException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  Injectable,
+  UnauthorizedException,
+} from '@nestjs/common';
+import { randomUUID } from 'crypto';
 import { DatabaseService } from '../database/database.service';
 import { LoginAs, LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 import { PasswordService } from './password.service';
 import { TokenService } from './token.service';
-import { SupabaseStorageService } from '../storage/supabase-storage.service';
 
-type UploadedPhoto = {
-  buffer: Buffer;
-  mimetype: string;
-  originalname?: string;
-  size?: number;
-};
-
-export type AuthPayload = {
-  token: string;
-  userLogged: {
-    id: string;
-    info: {
-      firstName: string;
-      lastName: string;
-      city: string | null;
-      postalCode: string | null;
-      country: string | null;
-      photoUrl: string | null;
-      email: string;
-      created_at: string;
-      roleId: number;
-      phone: string | null;
-    };
-    company: {
-      name: string;
-      phone: string | null;
-      type: string | null;
-      address: {
-        locality: string;
-        street: string;
-        country: string;
-      };
-    } | null;
-    setup: {
-      language: {
-        code: string;
-        id: number;
-      };
-      notifications: boolean;
-    };
+export type UserInfo = {
+  id: string;
+  info: {
+    firstName: string;
+    lastName: string;
+    city: string | null;
+    postalCode: string | null;
+    country: string | null;
+    photoUrl: string | null;
+    email: string;
+    createdAt: string;
+    role: { id: number; value: string; type: string };
+    phone: string | null;
+  };
+  company: {
+    name: string;
+    phone: string | null;
+    type: string | null;
+    address: { locality: string; street: string; country: string };
+  } | null;
+  setup: {
+    language: { code: string; id: number };
+    notifications: boolean;
   };
 };
+
+// Retourné uniquement en interne vers le controller pour poser le cookie.
+export type AuthResult = { token: string; user: UserInfo };
 
 @Injectable()
 export class AuthService {
@@ -55,74 +47,68 @@ export class AuthService {
     private readonly databaseService: DatabaseService,
     private readonly passwordService: PasswordService,
     private readonly tokenService: TokenService,
-    private readonly storageService: SupabaseStorageService,
   ) {}
 
-  async register(dto: RegisterDto, file?: UploadedPhoto): Promise<AuthPayload> {
+  async register(dto: RegisterDto): Promise<string> {
+    // Vérification mot de passes identiques
     if (dto.password !== dto.confirmedPassword) {
       throw new BadRequestException('Les mots de passe ne correspondent pas');
     }
 
+    // Check si email déjà utilisé (soft delete ignoré)
     const existing = await this.databaseService.auth.findFirst({
       where: { email: dto.email, deleted: false },
       select: { id: true },
     });
-
     if (existing) {
-      throw new ConflictException('Email deja utilise');
+      throw new ConflictException('Une erreur est survenue lors de la création du compte');
     }
+    // Récupération du hash du mot de passe et du rôle par défaut en parallèle
+    const [passwordHash, defaultRole] = await Promise.all([
+      this.passwordService.hash(dto.password),
+      this.databaseService.role.findFirstOrThrow({
+        where: { type: 'USER' },
+        select: { id: true },
+      }),
+    ]);
 
-    const passwordHash = await this.passwordService.hash(dto.password);
-
-
-    const created = await this.databaseService.auth.create({
-      data: {
-        email: dto.email.toLowerCase().trim(),
-        password: passwordHash,
-        user: {
-          create: {
-            firstName: dto.firstName,
-            lastName: dto.lastName,
-            phone: dto.phone,
-            city: dto.address.city,
-            roleId: 2, // Par défaut, le rôle est "Utilisateur" (id = 2)
-          },
+    const authId = randomUUID();
+    await this.databaseService.$transaction(async (tx) => {
+      await tx.user.create({
+        data: {
+          id: authId,
+          firstName: dto.firstName,
+          lastName: dto.lastName,
+          phone: dto.phone,
+          city: dto.address.city,
+          postalCode: dto.address.postal_code,
+          country: dto.address.country ?? null,
+          roleId: defaultRole.id,
         },
-      },
-      select: { id: true, user: { select: { id: true } } },
+      });
+      await tx.auth.create({
+        data: {
+          id: authId,
+          email: dto.email.toLowerCase().trim(),
+          password: passwordHash,
+        },
+      });
     });
 
-    if (file && created.user) {
-      try {
-        const extension = file.mimetype.split('/')[1] || 'jpg';
-        const storagePath = `${created.user.id}/photo/photo_${Date.now()}.${extension}`;
+    // Création de la session et construction de l'objet utilisateur.
+    const token = this.tokenService.signAuthToken(authId);
+    await this.saveSession(authId, token);
+    const user = await this.buildUserInfo(authId);
+    return token;
+  };
 
-        await this.storageService.uploadFile(storagePath, file.buffer, {
-          contentType: file.mimetype,
-        });
-
-        await this.databaseService.user.update({
-          where: { id: created.user.id },
-          data: { photoPath: storagePath },
-        });
-      } catch (error) {
-        console.error('Erreur upload photo:', error);
-      }
-    }
-
-    const payload = await this.getMe(created.id);
-    await this.saveSession(created.id, payload.token);
-    return payload;
-  }
-
-  async login(dto: LoginDto): Promise<AuthPayload> {
+  async login(dto: LoginDto): Promise<string> {
     const loginAs: LoginAs = dto.as ?? 'USER';
 
     const credentials = await this.databaseService.auth.findFirst({
       where: { email: dto.email, deleted: false },
       select: { id: true, password: true },
     });
-
     if (!credentials) {
       throw new UnauthorizedException('Email ou mot de passe invalide');
     }
@@ -132,24 +118,19 @@ export class AuthService {
       throw new UnauthorizedException('Email ou mot de passe invalide');
     }
 
-    const userInfo = await this.databaseService.user.findFirst({
+    const userRow = await this.databaseService.user.findFirst({
       where: { id: credentials.id, deleted: false },
       select: { roleId: true },
     });
-
-    if (!userInfo) {
+    if (!userRow) {
       throw new UnauthorizedException('Utilisateur introuvable');
     }
 
-    // Vérifie le rôle via une requête directe AVANT de toucher les sessions.
-    // auth.id = user.id (relation 1:1 par même UUID).
-    const isAdmin = this.hasAdminRole(userInfo.roleId);
-    const ownedCompanyCount = await this.databaseService.company.count({
-      where: { ownerId: credentials.id, deleted: false },
-    });
-    const isCompanyOwner = ownedCompanyCount > 0;
-
-    this.assertLoginAs(loginAs, isAdmin, isCompanyOwner);
+    const [isAdmin, ownedCount] = await Promise.all([
+      this.hasAdminRole(userRow.roleId),
+      this.databaseService.company.count({ where: { ownerId: credentials.id, deleted: false } }),
+    ]);
+    this.assertLoginAs(loginAs, isAdmin, ownedCount > 0);
 
     // Révoque l'ancienne session et met à jour la date de connexion.
     await this.databaseService.$transaction([
@@ -160,10 +141,21 @@ export class AuthService {
       }),
     ]);
 
-    const payload = await this.getMe(credentials.id);
-    await this.saveSession(credentials.id, payload.token);
-    return payload;
+    const token = this.tokenService.signAuthToken(credentials.id);
+    await this.saveSession(credentials.id, token);
+    return token;
   }
+
+  async getMe(authId: string): Promise<UserInfo> {
+    return this.buildUserInfo(authId);
+  }
+
+  async logout(token: string): Promise<void> {
+    const tokenHash = this.tokenService.hashToken(token);
+    await this.databaseService.session.deleteMany({ where: { tokenHash } });
+  }
+
+  // ─── Privé ────────────────────────────────────────────────────────────────────
 
   private assertLoginAs(loginAs: LoginAs, isAdmin: boolean, isCompanyOwner: boolean): void {
     if (loginAs === 'USER' && isAdmin) {
@@ -172,7 +164,7 @@ export class AuthService {
     if (loginAs === 'USER' && isCompanyOwner) {
       throw new ForbiddenException('Utilisez le portail entreprise pour vous connecter');
     }
-    if (loginAs === 'COMPANY' && !isCompanyOwner) {
+    if (loginAs === 'MANAGER' && !isCompanyOwner) {
       throw new ForbiddenException('Aucune entreprise associée à ce compte');
     }
     if (loginAs === 'ADMIN' && !isAdmin) {
@@ -180,14 +172,13 @@ export class AuthService {
     }
   }
 
-  // Chercher si l'utilisateur a le users.roleId === 1
-  private hasAdminRole(roleId: number) {
-    return roleId === 1;
-  }
-
-  async logout(token: string): Promise<void> {
-    const tokenHash = this.tokenService.hashToken(token);
-    await this.databaseService.session.deleteMany({ where: { tokenHash } });
+  private async hasAdminRole(roleId: number | null): Promise<boolean> {
+    if (!roleId) return false;
+    const role = await this.databaseService.role.findFirst({
+      where: { id: roleId },
+      select: { type: true },
+    });
+    return role?.type === 'ADMIN';
   }
 
   private async saveSession(authId: string, token: string): Promise<void> {
@@ -198,7 +189,7 @@ export class AuthService {
     });
   }
 
-  async getMe(authId: string): Promise<AuthPayload> {
+  private async buildUserInfo(authId: string): Promise<UserInfo> {
     const auth = await this.databaseService.auth.findFirst({
       where: { id: authId, deleted: false },
       select: {
@@ -213,11 +204,11 @@ export class AuthService {
             photoPath: true,
             phone: true,
             city: true,
-            roleId: true,
             postalCode: true,
             country: true,
-            language: { select: { id: true, code: true } },
             notifications: true,
+            role: { select: { id: true, value: true, type: true } },
+            language: { select: { id: true, code: true } },
             companies: {
               where: { deleted: false },
               select: {
@@ -239,56 +230,49 @@ export class AuthService {
       },
     });
 
-    if (!auth || !auth.user) {
+    if (!auth?.user) {
       throw new UnauthorizedException('Utilisateur introuvable');
     }
 
     const { user } = auth;
-    const firstName = user.firstName;
-    const lastName = user.lastName;
-
-    if (!firstName || !lastName) {
+    if (!user.firstName || !user.lastName) {
       throw new UnauthorizedException('Profil utilisateur incomplet');
     }
 
     const company = user.companies[0] ?? null;
-    const photoExt = user.photoPath?.split('.').pop() ?? null;
 
     return {
-      token: this.tokenService.signAuthToken(auth.id),
-      userLogged: {
-        id: user.id,
-        info: {
-          firstName,
-          lastName,
-          city: user.city,
-          photoUrl:user.photoPath,
-          postalCode: user.postalCode,
-          country: user.country,
-          email: auth.email,
-          created_at: auth.createdAt.toISOString(),
-          phone: user.phone,
-          roleId: user.roleId,
+      id: user.id,
+      info: {
+        firstName: user.firstName,
+        lastName: user.lastName,
+        city: user.city,
+        postalCode: user.postalCode,
+        country: user.country,
+        photoUrl: user.photoPath,
+        email: auth.email,
+        createdAt: auth.createdAt.toISOString(),
+        role: { id: user.role.id, value: user.role.value, type: user.role.type },
+        phone: user.phone,
+      },
+      company: company
+        ? {
+            name: company.name,
+            phone: company.phone,
+            type: company.type,
+            address: {
+              locality: company.address.locality,
+              street: company.address.street,
+              country: company.address.country.name,
+            },
+          }
+        : null,
+      setup: {
+        language: {
+          code: user.language?.code ?? 'fr',
+          id: user.language?.id ?? 1,
         },
-        company: company
-          ? {
-              name: company.name,
-              phone: company.phone,
-              type: company.type,
-              address: {
-                locality: company.address.locality,
-                street: company.address.street,
-                country: company.address.country.name,
-              },
-            }
-          : null,
-        setup: {
-          language: {
-            code : user.language?.code ?? 'FR',
-            id: user.language?.id ?? 1,
-          },
-          notifications: user.notifications,
-        },
+        notifications: user.notifications,
       },
     };
   }
