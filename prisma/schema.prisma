@@ -368,7 +368,7 @@ model Station {
   id              Int      @id @default(autoincrement())
   createdAt        DateTime @default(now())
   deleted          Boolean  @default(false)
-
+  name             String   @unique
   countryId        Int      @map("country_id")
   officeAddressId  Int      @map("office_address_id")
 

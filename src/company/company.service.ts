@@ -34,6 +34,7 @@ export class CompanyService {
         phone: dto.phone,
         type: dto.type,
         owner: { connect: { id: ownerId } },
+        station: { connect: { id: dto.stationId } },
         address: {
           create: {
             street: dto.address.street,

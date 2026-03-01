@@ -42,4 +42,8 @@ export class CreateCompanyDto {
   @ValidateNested()
   @Type(() => CreateCompanyAddressDto)
   address!: CreateCompanyAddressDto;
+
+  @IsInt()
+  @IsPositive()
+  stationId!: number;
 }
