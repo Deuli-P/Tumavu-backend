@@ -8,6 +8,7 @@ import { ApplicationAnnouncementStatus } from '@prisma/client';
 import { DatabaseService } from '../database/database.service';
 import { CreateAnnonceDto } from './dto/create-annonce.dto';
 import { UpdateAnnonceDto } from './dto/update-annonce.dto';
+import { ListAnnonceAdminDto } from './dto/list-annonce-admin.dto';
 
 const ANNONCE_SELECT = {
   id: true,
@@ -87,6 +88,111 @@ export class AnnonceService {
     return this.databaseService.announcement.findFirst({
       where: { id, deleted: false },
       select: ANNONCE_SELECT,
+    });
+  }
+
+  async listAdmin(dto: ListAnnonceAdminDto = {}) {
+    return this.databaseService.announcement.findMany({
+      where: {
+        deleted: false,
+        ...(dto.stationIds?.length
+          ? { company: { stationId: { in: dto.stationIds } } }
+          : {}),
+        ...(dto.tagIds?.length
+          ? {
+              job: {
+                tags: {
+                  some: { tagId: { in: dto.tagIds }, deleted: false },
+                },
+              },
+            }
+          : {}),
+      },
+      select: {
+        id: true,
+        title: true,
+        status: true,
+        createdAt: true,
+        job: {
+          select: {
+            id: true,
+            title: true,
+            tags: {
+              where: { deleted: false },
+              select: { tag: { select: { id: true, name: true } } },
+            },
+          },
+        },
+        company: {
+          select: {
+            id: true,
+            name: true,
+            station: { select: { id: true, name: true } },
+          },
+        },
+        _count: { select: { applications: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  async listAdminTags() {
+    const tags = await this.databaseService.tag.findMany({
+      where: {
+        jobs: {
+          some: {
+            deleted: false,
+            job: {
+              announcements: { some: { deleted: false } },
+            },
+          },
+        },
+      },
+      select: { id: true, name: true },
+      orderBy: { name: 'asc' },
+    });
+    return tags;
+  }
+
+  async findOneAdmin(id: number) {
+    return this.databaseService.announcement.findFirst({
+      where: { id, deleted: false },
+      select: {
+        id: true,
+        title: true,
+        description: true,
+        status: true,
+        createdAt: true,
+        job: { select: { id: true, title: true, contractType: true } },
+        company: {
+          select: {
+            id: true,
+            name: true,
+            phone: true,
+            type: true,
+            address: { select: { locality: true, country: { select: { name: true } } } },
+          },
+        },
+        applications: {
+          where: { deleted: false },
+          select: {
+            id: true,
+            status: true,
+            createdAt: true,
+            user: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                phone: true,
+                country: { select: { name: true } },
+                auth: { select: { email: true } },
+              },
+            },
+          },
+          orderBy: { createdAt: 'desc' },
+        },
+      },
     });
   }
 

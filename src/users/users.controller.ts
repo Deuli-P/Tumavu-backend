@@ -1,12 +1,26 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, Query, UseGuards } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
-import { UsersService } from './users.service';
+import { UsersService, AdminUserItem } from './users.service';
 import { AuthenticatedGuard } from '../auth/guards/authenticated.guard';
+import { AdminGuard } from '../auth/guards/admin.guard';
+import { ListUsersAdminDto } from './dto/list-users-admin.dto';
 
 @UseGuards(AuthenticatedGuard)
 @Controller('users')
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
+
+  @Get('admin')
+  @UseGuards(AdminGuard)
+  listUsersAdmin(@Query() query: ListUsersAdminDto): Promise<AdminUserItem[]> {
+    return this.usersService.listUsersAdmin(query);
+  }
+
+  @Get('admin/countries')
+  @UseGuards(AdminGuard)
+  listUsersAdminCountries(): Promise<string[]> {
+    return this.usersService.listUsersAdminCountries();
+  }
 
   @Post()
   create(@Body() createUserDto: Prisma.UserCreateInput) {

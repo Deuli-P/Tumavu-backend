@@ -102,7 +102,8 @@ model User {
   city          String?
   postalCode    String?  @map("postal_code")
   phone         String?
-  country       String?
+  countryId     Int?     @map("country_id")
+  country       Country? @relation(fields: [countryId], references: [id])
   languageId    Int?     @map("language_id")
   language      Language? @relation(fields: [languageId], references: [id])
   notifications Boolean  @default(true)
@@ -392,6 +393,7 @@ model Country {
 
   addresses Address[]
   stations  Station[]
+  users     User[]
 
   @@map("countries")
 }

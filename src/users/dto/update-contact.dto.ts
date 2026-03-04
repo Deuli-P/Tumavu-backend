@@ -1,4 +1,4 @@
-import { IsOptional, IsString, MinLength } from 'class-validator';
+import { IsInt, IsOptional, IsPositive, IsString, MinLength } from 'class-validator';
 
 export class UpdateContactDto {
   @IsOptional()
@@ -17,7 +17,7 @@ export class UpdateContactDto {
   postalCode?: string;
 
   @IsOptional()
-  @IsString()
-  @MinLength(1)
-  country?: string;
+  @IsInt()
+  @IsPositive()
+  countryId?: number;
 }

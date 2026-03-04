@@ -13,6 +13,9 @@ import { AnnonceModule } from './annonce/annonce.module';
 import { DocumentModule } from './document/document.module';
 import { PassageModule } from './passage/passage.module';
 import { SettingsModule } from './settings/settings.module';
+import { StationModule } from './station/station.module';
+import { PermissionModule } from './permission/permission.module';
+import { DashboardModule } from './dashboard/dashboard.module';
 
 // Module racine: il assemble la configuration, les modules, controllers et services.
 @Module({
@@ -33,6 +36,9 @@ import { SettingsModule } from './settings/settings.module';
     DocumentModule,
     PassageModule,
     SettingsModule,
+    StationModule,
+    PermissionModule,
+    DashboardModule,
   ],
   controllers: [AppController],
   providers: [AppService],

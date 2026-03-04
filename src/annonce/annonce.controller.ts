@@ -11,12 +11,14 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { AuthenticatedGuard } from '../auth/guards/authenticated.guard';
+import { AdminGuard } from '../auth/guards/admin.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { AuthenticatedRequestUser } from '../auth/auth-user.interface';
 import { AnnonceService } from './annonce.service';
 import { CreateAnnonceDto } from './dto/create-annonce.dto';
 import { UpdateAnnonceDto } from './dto/update-annonce.dto';
 import { AssignAnnonceDto } from './dto/assign-annonce.dto';
+import { ListAnnonceAdminDto } from './dto/list-annonce-admin.dto';
 
 @Controller('annonce')
 @UseGuards(AuthenticatedGuard)
@@ -29,6 +31,24 @@ export class AnnonceController {
     @Body() dto: CreateAnnonceDto,
   ) {
     return this.annonceService.create(user.userId, dto);
+  }
+
+  @Get('admin')
+  @UseGuards(AdminGuard)
+  listAdmin(@Query() dto: ListAnnonceAdminDto) {
+    return this.annonceService.listAdmin(dto);
+  }
+
+  @Get('admin/tags')
+  @UseGuards(AdminGuard)
+  listAdminTags() {
+    return this.annonceService.listAdminTags();
+  }
+
+  @Get('admin/:id')
+  @UseGuards(AdminGuard)
+  findOneAdmin(@Param('id', ParseIntPipe) id: number) {
+    return this.annonceService.findOneAdmin(id);
   }
 
   @Get()

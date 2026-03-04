@@ -64,7 +64,6 @@ export class AuthenticatedGuard implements CanActivate {
       },
     });
 
-    console.log('auth trouvé :', auth);
 
     if (!auth?.user) {
       throw new UnauthorizedException('Utilisateur introuvable');

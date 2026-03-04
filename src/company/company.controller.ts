@@ -1,9 +1,11 @@
 import { Body, Controller, Delete, Get, Param, ParseIntPipe, Post, Put, UseGuards } from '@nestjs/common';
 import { AuthenticatedGuard } from '../auth/guards/authenticated.guard';
+import { AdminGuard } from '../auth/guards/admin.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { AuthenticatedRequestUser } from '../auth/auth-user.interface';
-import { CompanyService, CompanyPayload } from './company.service';
+import { CompanyService, CompanyPayload, CompanyListItem } from './company.service';
 import { CreateCompanyDto } from './dto/create-company.dto';
+import { CreateCompanyWithOwnerDto } from './dto/create-company-with-owner.dto';
 import { UpsertOptionsDto } from './dto/upsert-options.dto';
 import { CreateBenefitDto } from './dto/create-benefit.dto';
 import { UpdateBenefitDto } from './dto/update-benefit.dto';
@@ -21,6 +23,18 @@ export class CompanyController {
     @Body() dto: CreateCompanyDto,
   ): Promise<CompanyPayload> {
     return this.companyService.createCompany(user.userId, dto);
+  }
+
+  @Get('admin')
+  @UseGuards(AdminGuard)
+  listCompanies(): Promise<CompanyListItem[]> {
+    return this.companyService.listCompanies();
+  }
+
+  @Post('admin')
+  @UseGuards(AuthenticatedGuard, AdminGuard)
+  createCompanyWithOwner(@Body() dto: CreateCompanyWithOwnerDto): Promise<CompanyPayload> {
+    return this.companyService.createCompanyWithOwner(dto);
   }
 
   // ─── Options ──────────────────────────────────────────────────────────────

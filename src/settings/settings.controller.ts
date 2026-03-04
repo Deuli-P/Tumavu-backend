@@ -10,6 +10,11 @@ export class SettingsController {
     return this.settingsService.getUtils();
   }
 
+  @Get('countries')
+  getCountries() {
+    return this.settingsService.getCountries();
+  }
+
 
   @Put('notifications')
   updateNotifications() {

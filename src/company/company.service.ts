@@ -1,9 +1,26 @@
-import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { randomUUID } from 'crypto';
 import { DatabaseService } from '../database/database.service';
+import { PasswordService } from '../auth/password.service';
 import { CreateCompanyDto } from './dto/create-company.dto';
+import { CreateCompanyWithOwnerDto } from './dto/create-company-with-owner.dto';
 import { UpsertOptionsDto } from './dto/upsert-options.dto';
 import { CreateBenefitDto } from './dto/create-benefit.dto';
 import { UpdateBenefitDto } from './dto/update-benefit.dto';
+
+export type CompanyListItem = {
+  id: string;
+  name: string;
+  type: string | null;
+  createdAt: string;
+  address: {
+    locality: string;
+    country: { id: number; name: string; code: string };
+  };
+  station: { id: number; name: string };
+  owner: { id: string; firstName: string; lastName: string };
+  _count: { jobs: number; announcements: number };
+};
 
 export type CompanyPayload = {
   id: string;
@@ -24,7 +41,10 @@ export type CompanyPayload = {
 
 @Injectable()
 export class CompanyService {
-  constructor(private readonly databaseService: DatabaseService) {}
+  constructor(
+    private readonly databaseService: DatabaseService,
+    private readonly passwordService: PasswordService,
+  ) {}
 
   async createCompany(ownerId: string, dto: CreateCompanyDto): Promise<CompanyPayload> {
     const company = await this.databaseService.company.create({
@@ -78,6 +98,132 @@ export class CompanyService {
         id: company.ownerId,
       },
     };
+  }
+
+  async createCompanyWithOwner(dto: CreateCompanyWithOwnerDto): Promise<CompanyPayload> {
+    const existing = await this.databaseService.auth.findFirst({
+      where: { email: dto.owner.email.toLowerCase().trim(), deleted: false },
+      select: { id: true },
+    });
+    if (existing) throw new ConflictException('Un compte avec cet email existe déjà');
+
+    const [passwordHash, managerRole] = await Promise.all([
+      this.passwordService.hash('azertyuiop'),
+      this.databaseService.role.findFirstOrThrow({
+        where: { type: 'MANAGER' },
+        select: { id: true },
+      }),
+    ]);
+
+    const ownerId = randomUUID();
+
+    const company = await this.databaseService.$transaction(async (tx) => {
+      await tx.user.create({
+        data: {
+          id: ownerId,
+          firstName: dto.owner.firstName,
+          lastName: dto.owner.lastName,
+          roleId: managerRole.id,
+          countryId: dto.address.countryId,
+          city: dto.address.locality,
+        },
+      });
+      await tx.auth.create({
+        data: {
+          id: ownerId,
+          email: dto.owner.email.toLowerCase().trim(),
+          password: passwordHash,
+        },
+      });
+
+      return tx.company.create({
+        data: {
+          name: dto.name,
+          description: dto.description,
+          phone: dto.phone,
+          type: dto.type,
+          owner: { connect: { id: ownerId } },
+          station: { connect: { id: dto.stationId } },
+          address: {
+            create: {
+              street: dto.address.street,
+              number: dto.address.number,
+              locality: dto.address.locality,
+              country: { connect: { id: dto.address.countryId } },
+            },
+          },
+        },
+        select: {
+          id: true,
+          name: true,
+          description: true,
+          phone: true,
+          type: true,
+          ownerId: true,
+          address: {
+            select: {
+              street: true,
+              number: true,
+              locality: true,
+              country: { select: { name: true, code: true } },
+            },
+          },
+        },
+      });
+    });
+
+    return {
+      id: company.id,
+      name: company.name,
+      description: company.description,
+      phone: company.phone,
+      type: company.type,
+      address: {
+        street: company.address.street,
+        number: company.address.number,
+        locality: company.address.locality,
+        country: company.address.country,
+      },
+      owner: {
+        id: company.ownerId,
+      },
+    };
+  }
+
+  async listCompanies(): Promise<CompanyListItem[]> {
+    const companies = await this.databaseService.company.findMany({
+      where: { deleted: false },
+      select: {
+        id: true,
+        name: true,
+        type: true,
+        createdAt: true,
+        address: {
+          select: {
+            locality: true,
+            country: { select: { id: true, name: true, code: true } },
+          },
+        },
+        station: { select: { id: true, name: true } },
+        owner: { select: { id: true, firstName: true, lastName: true } },
+        _count: { select: { jobs: true, announcements: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return companies.map((c) => ({
+      id: c.id,
+      name: c.name,
+      type: c.type,
+      createdAt: c.createdAt.toISOString(),
+      address: {
+        locality: c.address.locality,
+        country: c.address.country,
+      },
+      station: c.station,
+      owner: c.owner,
+      _count: c._count,
+    }));
   }
 
   // ─── Vérification ownership ───────────────────────────────────────────────
