@@ -46,11 +46,34 @@ enum AnnouncementStatus {
 }
 
 enum ApplicationAnnouncementStatus {
+  PENDING
   CONFIRMED
   REFUSED
   INTERVIEW
   SIGNATURE
   CANCELLED
+}
+
+enum UserJobStatus {
+  ACTIVE
+  COMPLETED
+  CANCELLED
+}
+
+enum InvitationStatus {
+  PENDING
+  ACCEPTED
+  EXPIRED
+  CANCELLED
+}
+
+enum NotificationType {
+  INVITATION_RECEIVED      // Reçu une invitation à rejoindre un job
+  JOB_ASSIGNED             // Assigné directement à un job (user existant)
+  APPLICATION_RECEIVED     // Manager : nouvelle candidature sur une annonce
+  APPLICATION_STATUS       // Candidat : statut de sa candidature changé
+  PASSAGE_REQUEST          // Compagnie : un travailleur demande à pointer (passage)
+  GENERAL                  // Message générique
 }
 
 enum RoleType {
@@ -110,13 +133,19 @@ model User {
 
   auth Auth?
 
-  companies     Company[]               @relation("CompanyOwner")
-  documents     Document[]
-  passages      Passage[]
-  createdJobs   Job[]                   @relation("CreatorJobs")
-  announcements Announcement[]          @relation("AnnouncementCreator")
-  applications  ApplicationAnnouncement[] @relation("ApplicantApplications")
-  processed     ApplicationAnnouncement[] @relation("ProcessorApplications")
+  companies           Company[]               @relation("CompanyOwner")
+  documents           Document[]
+  passages            Passage[]
+  createdJobs         Job[]                   @relation("CreatorJobs")
+  announcements       Announcement[]          @relation("AnnouncementCreator")
+  applications        ApplicationAnnouncement[] @relation("ApplicantApplications")
+  processed           ApplicationAnnouncement[] @relation("ProcessorApplications")
+  userJobs            UserJob[]               @relation("UserJobWorker")
+  assignedJobs        UserJob[]               @relation("UserJobAssigner")
+  invitationsSent     Invitation[]            @relation("InvitationsSent")
+  invitationsReceived Invitation[]            @relation("InvitationsReceived")
+  notificationsReceived Notification[]        @relation("NotificationRecipient")
+  expoPushTokens        ExpoPushToken[]
 
   @@map("users")
 }
@@ -222,6 +251,8 @@ model Job {
   creator       User           @relation("CreatorJobs", fields: [createdBy], references: [id])
   tags          TagJob[]
   announcements Announcement[]
+  userJobs      UserJob[]
+  invitations   Invitation[]
 
   @@map("jobs")
 }
@@ -360,6 +391,80 @@ model Document {
   user User @relation(fields: [userId], references: [id])
 
   @@map("documents")
+}
+
+// ─── Employment ───────────────────────────────────────────────────────────────
+
+model UserJob {
+  id         Int           @id @default(autoincrement())
+  userId     String        @map("user_id")
+  jobId      Int           @map("job_id")
+  status     UserJobStatus @default(ACTIVE)
+  assignedBy String        @map("assigned_by")
+  startDate  DateTime?     @map("start_date")
+  endDate    DateTime?     @map("end_date")
+  createdAt  DateTime      @default(now()) @map("created_at")
+  deleted    Boolean       @default(false)
+
+  user     User @relation("UserJobWorker", fields: [userId], references: [id])
+  job      Job  @relation(fields: [jobId], references: [id])
+  assigner User @relation("UserJobAssigner", fields: [assignedBy], references: [id])
+
+  @@map("user_jobs")
+}
+
+model Invitation {
+  id         Int              @id @default(autoincrement())
+  token      String           @unique @default(uuid())
+  email      String
+  jobId      Int              @map("job_id")
+  status     InvitationStatus @default(PENDING)
+  invitedBy  String           @map("invited_by")
+  userId     String?          @map("user_id")
+  expiresAt  DateTime         @map("expires_at")
+  acceptedAt DateTime?        @map("accepted_at")
+  createdAt  DateTime         @default(now()) @map("created_at")
+  deleted    Boolean          @default(false)
+
+  job     Job   @relation(fields: [jobId], references: [id])
+  inviter User  @relation("InvitationsSent", fields: [invitedBy], references: [id])
+  user    User? @relation("InvitationsReceived", fields: [userId], references: [id])
+
+  @@map("invitations")
+}
+
+// ─── Notifications ────────────────────────────────────────────────────────────
+
+model Notification {
+  id        Int              @id @default(autoincrement())
+  userId    String           @map("user_id")
+  type      NotificationType
+  title     String
+  body      String?
+  read      Boolean          @default(false)
+  readAt    DateTime?        @map("read_at")
+  deepLink  String?          @map("deep_link")  // ex: "tumavu://jobs/42" ou "/app/jobs/42"
+  metadata  Json?            // { jobId?, invitationToken?, applicationId?, companyId? }
+  createdAt DateTime         @default(now()) @map("created_at")
+  deleted   Boolean          @default(false)
+
+  user User @relation("NotificationRecipient", fields: [userId], references: [id])
+
+  @@map("notifications")
+}
+
+model ExpoPushToken {
+  id        Int      @id @default(autoincrement())
+  userId    String   @map("user_id")
+  token     String   @unique
+  deviceId  String?  @map("device_id")   // identifiant appareil (optionnel, pour dédoublonner)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  deleted   Boolean  @default(false)
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@map("expo_push_tokens")
 }
 
 // ─── Stations ───────────────────────────────────────────────────────────

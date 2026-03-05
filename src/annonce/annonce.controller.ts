@@ -19,6 +19,7 @@ import { CreateAnnonceDto } from './dto/create-annonce.dto';
 import { UpdateAnnonceDto } from './dto/update-annonce.dto';
 import { AssignAnnonceDto } from './dto/assign-annonce.dto';
 import { ListAnnonceAdminDto } from './dto/list-annonce-admin.dto';
+import { UpdateApplicationStatusDto } from './dto/update-application-status.dto';
 
 @Controller('annonce')
 @UseGuards(AuthenticatedGuard)
@@ -90,6 +91,23 @@ export class AnnonceController {
     @Body() dto: UpdateAnnonceDto,
   ) {
     return this.annonceService.update(user.userId, id, dto);
+  }
+
+  @Put('applications/:applicationId/status')
+  updateApplicationStatus(
+    @CurrentUser() user: AuthenticatedRequestUser,
+    @Param('applicationId', ParseIntPipe) applicationId: number,
+    @Body() dto: UpdateApplicationStatusDto,
+  ) {
+    return this.annonceService.updateApplicationStatus(user.userId, applicationId, dto.status);
+  }
+
+  @Post(':id/apply')
+  apply(
+    @CurrentUser() user: AuthenticatedRequestUser,
+    @Param('id', ParseIntPipe) id: number,
+  ) {
+    return this.annonceService.apply(user.userId, id);
   }
 
   @Put(':id/assign')

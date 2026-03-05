@@ -145,6 +145,55 @@ export class AuthService {
     return token;
   }
 
+  async loginCompany(dto: LoginDto): Promise<string> {
+    const credentials = await this.databaseService.auth.findFirst({
+      where: { email: dto.email.toLowerCase().trim(), deleted: false },
+      select: { id: true, password: true },
+    });
+    if (!credentials) {
+      throw new UnauthorizedException('Email ou mot de passe invalide');
+    }
+
+    const passwordOk = await this.passwordService.verify(dto.password, credentials.password);
+    if (!passwordOk) {
+      throw new UnauthorizedException('Email ou mot de passe invalide');
+    }
+
+    const user = await this.databaseService.user.findFirst({
+      where: { id: credentials.id, deleted: false },
+      select: {
+        role: { select: { type: true } },
+        companies: {
+          where: { deleted: false },
+          select: { id: true },
+          take: 1,
+        },
+      },
+    });
+
+    if (!user) {
+      throw new UnauthorizedException('Utilisateur introuvable');
+    }
+    if (user.role.type === 'ADMIN') {
+      throw new ForbiddenException('Utilisez le portail administrateur pour vous connecter');
+    }
+    if (user.companies.length === 0) {
+      throw new ForbiddenException('Aucune entreprise associée à ce compte');
+    }
+
+    await this.databaseService.session.deleteMany({
+      where: { authId: credentials.id },
+    });
+    await this.databaseService.auth.update({
+      where: { id: credentials.id },
+      data: { lastSignInAt: new Date() },
+    });
+
+    const token = this.tokenService.signAuthToken(credentials.id);
+    await this.saveSession(credentials.id, token);
+    return token;
+  }
+
   async loginAdmin(dto: LoginDto): Promise<string> {
     const credentials = await this.databaseService.auth.findFirst({
       where: { email: dto.email, deleted: false },

@@ -14,6 +14,6 @@ export class LoginDto {
   password!: string;
 
   @IsOptional()
-  @IsEnum(['USER', 'COMPANY', 'ADMIN'])
+  @IsEnum(['USER', 'MANAGER', 'ADMIN'])
   as?: LoginAs;
 }

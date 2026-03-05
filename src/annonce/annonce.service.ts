@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { ApplicationAnnouncementStatus } from '@prisma/client';
 import { DatabaseService } from '../database/database.service';
+import { NotificationService } from '../notification/notification.service';
 import { CreateAnnonceDto } from './dto/create-annonce.dto';
 import { UpdateAnnonceDto } from './dto/update-annonce.dto';
 import { ListAnnonceAdminDto } from './dto/list-annonce-admin.dto';
@@ -36,7 +37,10 @@ const ANNONCE_SELECT = {
 
 @Injectable()
 export class AnnonceService {
-  constructor(private readonly databaseService: DatabaseService) {}
+  constructor(
+    private readonly databaseService: DatabaseService,
+    private readonly notificationService: NotificationService,
+  ) {}
 
   async create(userId: string, dto: CreateAnnonceDto) {
     const company = await this.databaseService.company.findFirst({
@@ -339,6 +343,115 @@ export class AnnonceService {
         },
       },
     });
+  }
+
+  private readonly APPLICATION_STATUS_LABELS: Record<string, string> = {
+    PENDING: 'en attente',
+    CONFIRMED: 'confirmée',
+    REFUSED: 'refusée',
+    INTERVIEW: 'entretien planifié',
+    SIGNATURE: 'signature en cours',
+    CANCELLED: 'annulée',
+  };
+
+  async updateApplicationStatus(managerId: string, applicationId: number, status: ApplicationAnnouncementStatus) {
+    const application = await this.databaseService.applicationAnnouncement.findFirst({
+      where: { id: applicationId, deleted: false },
+      select: {
+        id: true,
+        userId: true,
+        announcementId: true,
+        announcement: {
+          select: {
+            id: true,
+            title: true,
+            createdBy: true,
+            jobId: true,
+          },
+        },
+      },
+    });
+
+    if (!application) throw new NotFoundException('Candidature introuvable');
+    if (application.announcement.createdBy !== managerId) throw new ForbiddenException('Non autorisé');
+
+    await this.databaseService.applicationAnnouncement.update({
+      where: { id: applicationId },
+      data: { status, processedBy: managerId, processedAt: new Date() },
+    });
+
+    // Notifier le candidat
+    const label = this.APPLICATION_STATUS_LABELS[status] ?? status.toLowerCase();
+    await this.notificationService.create({
+      userId: application.userId,
+      type: 'APPLICATION_STATUS',
+      title: 'Statut de candidature mis à jour',
+      body: `Votre candidature pour «${application.announcement.title}» est désormais ${label}.`,
+      deepLink: `tumavu://applications/${applicationId}`,
+      metadata: {
+        applicationId,
+        announcementId: application.announcementId,
+        jobId: application.announcement.jobId,
+        status,
+      },
+    });
+
+    return { id: applicationId, status };
+  }
+
+  async apply(userId: string, announcementId: number) {
+    const announcement = await this.databaseService.announcement.findFirst({
+      where: { id: announcementId, deleted: false, status: 'ACTIVE' },
+      select: {
+        id: true,
+        title: true,
+        createdBy: true,
+        jobId: true,
+        company: { select: { id: true, name: true } },
+      },
+    });
+
+    if (!announcement) throw new NotFoundException('Annonce introuvable ou fermée');
+
+    const existing = await this.databaseService.applicationAnnouncement.findFirst({
+      where: { announcementId, userId, deleted: false },
+      select: { id: true },
+    });
+
+    if (existing) throw new ConflictException('Vous avez déjà postulé à cette annonce');
+
+    const application = await this.databaseService.applicationAnnouncement.create({
+      data: {
+        announcementId,
+        userId,
+        status: ApplicationAnnouncementStatus.PENDING,
+      },
+      select: { id: true, status: true, createdAt: true },
+    });
+
+    // Récupérer le nom du candidat pour la notif
+    const applicant = await this.databaseService.user.findUnique({
+      where: { id: userId },
+      select: { firstName: true, lastName: true },
+    });
+    const applicantName = applicant ? `${applicant.firstName} ${applicant.lastName}` : 'Un candidat';
+
+    // Notifier le manager (créateur de l'annonce)
+    await this.notificationService.create({
+      userId: announcement.createdBy,
+      type: 'APPLICATION_RECEIVED',
+      title: 'Nouvelle candidature',
+      body: `${applicantName} a postulé à votre annonce «${announcement.title}».`,
+      deepLink: `/app/jobs/${announcement.jobId}/annonces/${announcementId}`,
+      metadata: {
+        applicationId: application.id,
+        announcementId,
+        jobId: announcement.jobId,
+        companyId: announcement.company?.id,
+      },
+    });
+
+    return application;
   }
 
   private async checkOwnership(userId: string, id: number): Promise<void> {

@@ -10,6 +10,9 @@ import { UpsertOptionsDto } from './dto/upsert-options.dto';
 import { CreateBenefitDto } from './dto/create-benefit.dto';
 import { UpdateBenefitDto } from './dto/update-benefit.dto';
 import { UpdateMyCompanyDto } from './dto/update-my-company.dto';
+import { CreateJobDto } from './dto/create-job.dto';
+import { UpdateJobDto } from './dto/update-job.dto';
+import { InviteToJobDto } from './dto/invite-to-job.dto';
 
 @Controller('company')
 @UseGuards(AuthenticatedGuard)
@@ -75,6 +78,58 @@ export class CompanyController {
     @Query('status') status?: string,
   ) {
     return this.companyService.getMyApplications(user.userId, status);
+  }
+
+  @Get('my/tags')
+  getTags() {
+    return this.companyService.getTags();
+  }
+
+  @Get('my/jobs')
+  getMyJobs(@CurrentUser() user: AuthenticatedRequestUser) {
+    return this.companyService.getMyJobs(user.userId);
+  }
+
+  @Get('my/jobs/:jobId')
+  getMyJobDetail(
+    @CurrentUser() user: AuthenticatedRequestUser,
+    @Param('jobId', ParseIntPipe) jobId: number,
+  ) {
+    return this.companyService.getMyJobDetail(user.userId, jobId);
+  }
+
+  @Post('my/jobs/:jobId/invite')
+  inviteToJob(
+    @CurrentUser() user: AuthenticatedRequestUser,
+    @Param('jobId', ParseIntPipe) jobId: number,
+    @Body() dto: InviteToJobDto,
+  ) {
+    return this.companyService.inviteToJob(user.userId, jobId, dto);
+  }
+
+  @Get('my/jobs/:jobId/employees')
+  getMyJobEmployees(
+    @CurrentUser() user: AuthenticatedRequestUser,
+    @Param('jobId', ParseIntPipe) jobId: number,
+  ) {
+    return this.companyService.getMyJobEmployees(user.userId, jobId);
+  }
+
+  @Post('my/jobs')
+  createJob(
+    @CurrentUser() user: AuthenticatedRequestUser,
+    @Body() dto: CreateJobDto,
+  ) {
+    return this.companyService.createJob(user.userId, dto);
+  }
+
+  @Put('my/jobs/:jobId')
+  updateJob(
+    @CurrentUser() user: AuthenticatedRequestUser,
+    @Param('jobId', ParseIntPipe) jobId: number,
+    @Body() dto: UpdateJobDto,
+  ) {
+    return this.companyService.updateJob(user.userId, jobId, dto);
   }
 
   // ─── Options ──────────────────────────────────────────────────────────────

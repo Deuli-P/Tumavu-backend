@@ -17,6 +17,8 @@ import { StationModule } from './station/station.module';
 import { PermissionModule } from './permission/permission.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { TagModule } from './tag/tag.module';
+import { InviteModule } from './invite/invite.module';
+import { NotificationModule } from './notification/notification.module';
 
 // Module racine: il assemble la configuration, les modules, controllers et services.
 @Module({
@@ -41,6 +43,8 @@ import { TagModule } from './tag/tag.module';
     PermissionModule,
     DashboardModule,
     TagModule,
+    InviteModule,
+    NotificationModule,
   ],
   controllers: [AppController],
   providers: [AppService],

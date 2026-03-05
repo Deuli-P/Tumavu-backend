@@ -49,6 +49,16 @@ export class AuthController {
   }
 
   @UseGuards(GuestOnlyGuard)
+  @Post('login/company')
+  async loginCompany(
+    @Body() dto: LoginDto,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<void> {
+    const token = await this.authService.loginCompany(dto);
+    this.setCookie(res, token);
+  }
+
+  @UseGuards(GuestOnlyGuard)
   @Post('login/admin')
   async loginAdmin(
     @Body() dto: LoginDto,

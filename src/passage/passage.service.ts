@@ -1,5 +1,6 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { DatabaseService } from '../database/database.service';
+import { NotificationService } from '../notification/notification.service';
 import { RecordPassageDto } from './dto/record-passage.dto';
 
 const PASSAGE_SELECT = {
@@ -13,7 +14,10 @@ const PASSAGE_SELECT = {
 
 @Injectable()
 export class PassageService {
-  constructor(private readonly databaseService: DatabaseService) {}
+  constructor(
+    private readonly databaseService: DatabaseService,
+    private readonly notificationService: NotificationService,
+  ) {}
 
   async record(scannerUserId: string, dto: RecordPassageDto) {
     const scannerUser = await this.databaseService.user.findFirst({
@@ -101,7 +105,7 @@ export class PassageService {
 
     const now = new Date();
 
-    return this.databaseService.passage.upsert({
+    const passage = await this.databaseService.passage.upsert({
       where: {
         userId_companyId_createdAt: {
           userId: dto.userId,
@@ -122,30 +126,40 @@ export class PassageService {
       },
       select: {
         ...PASSAGE_SELECT,
-        user: {
-          select: {
-            photoPath: true,
-            firstName: true,
-            lastName: true,
-          },
-        },
+        user: { select: { photoPath: true, firstName: true, lastName: true } },
       },
-    }).then((passage) => {
-      return {
-        id: passage.id,
-        createdAt: passage.createdAt,
-        countPassageThisDay: passage.countPassageThisDay,
-        lastPassageThisDay: passage.lastPassageThisDay,
-        userId: passage.userId,
-        companyId: passage.companyId,
-        scannedUser: {
-          photo: passage.user.photoPath,
-          firstName: passage.user.firstName,
-          lastName: passage.user.lastName,
-          companyName: scannedCompany.name,
-        },
-      };
     });
+
+    // Notifier le manager de la company scanneuse
+    const workerName = `${passage.user.firstName} ${passage.user.lastName}`;
+    await this.notificationService.create({
+      userId: scannerUserId,
+      type: 'PASSAGE_REQUEST',
+      title: 'Nouveau passage enregistré',
+      body: `${workerName} (${scannedCompany.name}) vient de pointer — ${passage.countPassageThisDay} passage(s) aujourd'hui.`,
+      deepLink: `/app/`,
+      metadata: {
+        passageId: passage.id,
+        workerUserId: dto.userId,
+        companyId: scannerCompany.id,
+        countToday: passage.countPassageThisDay,
+      },
+    });
+
+    return {
+      id: passage.id,
+      createdAt: passage.createdAt,
+      countPassageThisDay: passage.countPassageThisDay,
+      lastPassageThisDay: passage.lastPassageThisDay,
+      userId: passage.userId,
+      companyId: passage.companyId,
+      scannedUser: {
+        photo: passage.user.photoPath,
+        firstName: passage.user.firstName,
+        lastName: passage.user.lastName,
+        companyName: scannedCompany.name,
+      },
+    };
   }
 
   findAll(filters: { companyId?: string; userId?: string; date?: string }) {
