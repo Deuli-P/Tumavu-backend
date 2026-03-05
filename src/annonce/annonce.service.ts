@@ -154,6 +154,47 @@ export class AnnonceService {
     return tags;
   }
 
+  async listApplicationsAdmin(filters: {
+    status?: string;
+    companyId?: string;
+    stationId?: number;
+  } = {}) {
+    return this.databaseService.applicationAnnouncement.findMany({
+      where: {
+        deleted: false,
+        ...(filters.status ? { status: filters.status as ApplicationAnnouncementStatus } : {}),
+        announcement: {
+          deleted: false,
+          ...(filters.companyId ? { companyId: filters.companyId } : {}),
+          ...(filters.stationId
+            ? { company: { stationId: filters.stationId } }
+            : {}),
+        },
+      },
+      select: {
+        id: true,
+        status: true,
+        createdAt: true,
+        user: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            auth: { select: { email: true } },
+          },
+        },
+        announcement: {
+          select: {
+            id: true,
+            title: true,
+            company: { select: { id: true, name: true, station: { select: { id: true, name: true } } } },
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
   async findOneAdmin(id: number) {
     return this.databaseService.announcement.findFirst({
       where: { id, deleted: false },

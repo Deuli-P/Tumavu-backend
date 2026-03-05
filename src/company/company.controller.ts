@@ -3,7 +3,7 @@ import { AuthenticatedGuard } from '../auth/guards/authenticated.guard';
 import { AdminGuard } from '../auth/guards/admin.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { AuthenticatedRequestUser } from '../auth/auth-user.interface';
-import { CompanyService, CompanyPayload, CompanyListItem } from './company.service';
+import { CompanyService, CompanyPayload, CompanyListItem, CompanyDetail } from './company.service';
 import { CreateCompanyDto } from './dto/create-company.dto';
 import { CreateCompanyWithOwnerDto } from './dto/create-company-with-owner.dto';
 import { UpsertOptionsDto } from './dto/upsert-options.dto';
@@ -35,6 +35,12 @@ export class CompanyController {
   @UseGuards(AuthenticatedGuard, AdminGuard)
   createCompanyWithOwner(@Body() dto: CreateCompanyWithOwnerDto): Promise<CompanyPayload> {
     return this.companyService.createCompanyWithOwner(dto);
+  }
+
+  @Get('admin/:id')
+  @UseGuards(AdminGuard)
+  findOneAdmin(@Param('id') id: string): Promise<CompanyDetail> {
+    return this.companyService.findOneAdmin(id);
   }
 
   // ─── Options ──────────────────────────────────────────────────────────────

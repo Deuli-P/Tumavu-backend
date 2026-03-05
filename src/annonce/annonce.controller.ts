@@ -45,6 +45,20 @@ export class AnnonceController {
     return this.annonceService.listAdminTags();
   }
 
+  @Get('admin/applications')
+  @UseGuards(AdminGuard)
+  listApplicationsAdmin(
+    @Query('status') status?: string,
+    @Query('companyId') companyId?: string,
+    @Query('stationId') stationId?: string,
+  ) {
+    return this.annonceService.listApplicationsAdmin({
+      status,
+      companyId,
+      stationId: stationId ? Number(stationId) : undefined,
+    });
+  }
+
   @Get('admin/:id')
   @UseGuards(AdminGuard)
   findOneAdmin(@Param('id', ParseIntPipe) id: number) {

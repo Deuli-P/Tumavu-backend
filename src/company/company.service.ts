@@ -22,6 +22,43 @@ export type CompanyListItem = {
   _count: { jobs: number; announcements: number };
 };
 
+export type CompanyDetail = {
+  id: string;
+  name: string;
+  description: string | null;
+  type: string | null;
+  phone: string | null;
+  createdAt: string;
+  address: {
+    street: string;
+    number: string | null;
+    locality: string;
+    country: { name: string; code: string };
+  };
+  station: { id: number; name: string };
+  owner: { id: string; firstName: string; lastName: string; email: string };
+  jobs: {
+    id: number;
+    title: string;
+    contractType: string | null;
+    status: string | null;
+    tags: { id: number; name: string }[];
+    _count: { announcements: number };
+  }[];
+  announcements: {
+    id: number;
+    title: string;
+    status: string | null;
+    createdAt: string;
+    jobTitle: string | null;
+    _count: { applications: number };
+  }[];
+  kpis: {
+    passagesWeek: number;
+    passagesMonth: number;
+  };
+};
+
 export type CompanyPayload = {
   id: string;
   name: string;
@@ -187,6 +224,116 @@ export class CompanyService {
       owner: {
         id: company.ownerId,
       },
+    };
+  }
+
+  async findOneAdmin(id: string): Promise<CompanyDetail> {
+    const now = new Date();
+    const weekAgo = new Date(now);
+    weekAgo.setDate(weekAgo.getDate() - 7);
+    const monthAgo = new Date(now);
+    monthAgo.setMonth(monthAgo.getMonth() - 1);
+
+    const [company, passagesWeek, passagesMonth] = await Promise.all([
+      this.databaseService.company.findFirst({
+        where: { id, deleted: false },
+        select: {
+          id: true,
+          name: true,
+          description: true,
+          type: true,
+          phone: true,
+          createdAt: true,
+          address: {
+            select: {
+              street: true,
+              number: true,
+              locality: true,
+              country: { select: { name: true, code: true } },
+            },
+          },
+          station: { select: { id: true, name: true } },
+          owner: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              auth: { select: { email: true } },
+            },
+          },
+          jobs: {
+            where: { deleted: false },
+            select: {
+              id: true,
+              title: true,
+              contractType: true,
+              status: true,
+              tags: {
+                where: { deleted: false },
+                select: { tag: { select: { id: true, name: true } } },
+              },
+              _count: { select: { announcements: true } },
+            },
+            orderBy: { createdAt: 'desc' },
+          },
+          announcements: {
+            where: { deleted: false },
+            select: {
+              id: true,
+              title: true,
+              status: true,
+              createdAt: true,
+              job: { select: { title: true } },
+              _count: { select: { applications: true } },
+            },
+            orderBy: { createdAt: 'desc' },
+          },
+        },
+      }),
+      this.databaseService.passage.count({
+        where: { companyId: id, createdAt: { gte: weekAgo } },
+      }),
+      this.databaseService.passage.count({
+        where: { companyId: id, createdAt: { gte: monthAgo } },
+      }),
+    ]);
+
+    if (!company) {
+      throw new NotFoundException('Entreprise introuvable');
+    }
+
+    return {
+      id: company.id,
+      name: company.name,
+      description: company.description,
+      type: company.type,
+      phone: company.phone,
+      createdAt: company.createdAt.toISOString(),
+      address: company.address,
+      station: company.station,
+      owner: {
+        id: company.owner.id,
+        firstName: company.owner.firstName,
+        lastName: company.owner.lastName,
+        email: company.owner.auth?.email ?? '',
+      },
+      jobs: company.jobs.map((j) => ({
+        id: j.id,
+        title: j.title,
+        contractType: j.contractType ?? null,
+        status: j.status ?? null,
+        tags: j.tags.map((t) => t.tag),
+        _count: j._count,
+      })),
+      announcements: company.announcements.map((a) => ({
+        id: a.id,
+        title: a.title,
+        status: a.status ?? null,
+        createdAt: a.createdAt.toISOString(),
+        jobTitle: a.job?.title ?? null,
+        _count: a._count,
+      })),
+      kpis: { passagesWeek, passagesMonth },
     };
   }
 
