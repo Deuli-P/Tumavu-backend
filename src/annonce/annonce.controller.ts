@@ -75,6 +75,14 @@ export class AnnonceController {
     return this.annonceService.findOne(id);
   }
 
+  @Get(':id/applications')
+  findApplicationsForManager(
+    @CurrentUser() user: AuthenticatedRequestUser,
+    @Param('id', ParseIntPipe) id: number,
+  ) {
+    return this.annonceService.findApplicationsForManager(user.userId, id);
+  }
+
   @Put(':id')
   update(
     @CurrentUser() user: AuthenticatedRequestUser,

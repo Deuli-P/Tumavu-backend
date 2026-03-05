@@ -292,6 +292,55 @@ export class AnnonceService {
     }
   }
 
+  async findApplicationsForManager(userId: string, id: number) {
+    const annonce = await this.databaseService.announcement.findFirst({
+      where: { id, deleted: false },
+      select: { createdBy: true },
+    });
+    if (!annonce) throw new NotFoundException('Annonce introuvable');
+    if (annonce.createdBy !== userId) throw new ForbiddenException('Non autorise');
+
+    return this.databaseService.announcement.findFirst({
+      where: { id, deleted: false },
+      select: {
+        id: true,
+        title: true,
+        description: true,
+        status: true,
+        createdAt: true,
+        job: { select: { id: true, title: true, contractType: true } },
+        company: {
+          select: {
+            id: true,
+            name: true,
+            phone: true,
+            type: true,
+            address: { select: { locality: true, country: { select: { name: true } } } },
+          },
+        },
+        applications: {
+          where: { deleted: false },
+          select: {
+            id: true,
+            status: true,
+            createdAt: true,
+            user: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                phone: true,
+                country: { select: { name: true } },
+                auth: { select: { email: true } },
+              },
+            },
+          },
+          orderBy: { createdAt: 'desc' },
+        },
+      },
+    });
+  }
+
   private async checkOwnership(userId: string, id: number): Promise<void> {
     const annonce = await this.databaseService.announcement.findFirst({
       where: { id, deleted: false },

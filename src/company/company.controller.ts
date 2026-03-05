@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, ParseIntPipe, Post, Put, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, ParseIntPipe, Post, Put, Query, UseGuards } from '@nestjs/common';
 import { AuthenticatedGuard } from '../auth/guards/authenticated.guard';
 import { AdminGuard } from '../auth/guards/admin.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
@@ -9,6 +9,7 @@ import { CreateCompanyWithOwnerDto } from './dto/create-company-with-owner.dto';
 import { UpsertOptionsDto } from './dto/upsert-options.dto';
 import { CreateBenefitDto } from './dto/create-benefit.dto';
 import { UpdateBenefitDto } from './dto/update-benefit.dto';
+import { UpdateMyCompanyDto } from './dto/update-my-company.dto';
 
 @Controller('company')
 @UseGuards(AuthenticatedGuard)
@@ -41,6 +42,39 @@ export class CompanyController {
   @UseGuards(AdminGuard)
   findOneAdmin(@Param('id') id: string): Promise<CompanyDetail> {
     return this.companyService.findOneAdmin(id);
+  }
+
+  // ─── Manager: my company ──────────────────────────────────────────────────
+
+  @Get('my')
+  findMyCompany(@CurrentUser() user: AuthenticatedRequestUser) {
+    return this.companyService.findMyCompany(user.userId);
+  }
+
+  @Put('my')
+  updateMyCompany(
+    @CurrentUser() user: AuthenticatedRequestUser,
+    @Body() dto: UpdateMyCompanyDto,
+  ) {
+    return this.companyService.updateMyCompany(user.userId, dto);
+  }
+
+  @Get('my/stats')
+  getMyStats(@CurrentUser() user: AuthenticatedRequestUser) {
+    return this.companyService.getMyStats(user.userId);
+  }
+
+  @Get('my/employees')
+  getMyEmployees(@CurrentUser() user: AuthenticatedRequestUser) {
+    return this.companyService.getMyEmployees(user.userId);
+  }
+
+  @Get('my/applications')
+  getMyApplications(
+    @CurrentUser() user: AuthenticatedRequestUser,
+    @Query('status') status?: string,
+  ) {
+    return this.companyService.getMyApplications(user.userId, status);
   }
 
   // ─── Options ──────────────────────────────────────────────────────────────

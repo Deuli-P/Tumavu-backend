@@ -7,6 +7,7 @@ import { CreateCompanyWithOwnerDto } from './dto/create-company-with-owner.dto';
 import { UpsertOptionsDto } from './dto/upsert-options.dto';
 import { CreateBenefitDto } from './dto/create-benefit.dto';
 import { UpdateBenefitDto } from './dto/update-benefit.dto';
+import { UpdateMyCompanyDto } from './dto/update-my-company.dto';
 
 export type CompanyListItem = {
   id: string;
@@ -475,6 +476,167 @@ export class CompanyService {
     await this.databaseService.benefit.update({
       where: { id: benefitId },
       data: { deleted: true },
+    });
+  }
+
+  // ─── Manager : my company ─────────────────────────────────────────────────
+
+  async findMyCompany(userId: string) {
+    const company = await this.databaseService.company.findFirst({
+      where: { ownerId: userId, deleted: false },
+      select: {
+        id: true,
+        name: true,
+        description: true,
+        type: true,
+        phone: true,
+        createdAt: true,
+        address: {
+          select: {
+            street: true,
+            number: true,
+            locality: true,
+            country: { select: { name: true, code: true } },
+          },
+        },
+        station: { select: { id: true, name: true } },
+      },
+    });
+
+    if (!company) {
+      throw new NotFoundException('Entreprise introuvable');
+    }
+
+    return {
+      ...company,
+      createdAt: company.createdAt.toISOString(),
+    };
+  }
+
+  async updateMyCompany(userId: string, dto: UpdateMyCompanyDto) {
+    const company = await this.databaseService.company.findFirst({
+      where: { ownerId: userId, deleted: false },
+      select: { id: true },
+    });
+    if (!company) throw new NotFoundException('Entreprise introuvable');
+
+    return this.databaseService.company.update({
+      where: { id: company.id },
+      data: {
+        ...(dto.name !== undefined && { name: dto.name }),
+        ...(dto.description !== undefined && { description: dto.description }),
+        ...(dto.phone !== undefined && { phone: dto.phone }),
+        ...(dto.type !== undefined && { type: dto.type }),
+      },
+      select: {
+        id: true,
+        name: true,
+        description: true,
+        type: true,
+        phone: true,
+        address: {
+          select: {
+            street: true,
+            number: true,
+            locality: true,
+            country: { select: { name: true, code: true } },
+          },
+        },
+        station: { select: { id: true, name: true } },
+      },
+    });
+  }
+
+  async getMyStats(userId: string) {
+    const company = await this.databaseService.company.findFirst({
+      where: { ownerId: userId, deleted: false },
+      select: { id: true },
+    });
+    if (!company) throw new NotFoundException('Entreprise introuvable');
+
+    const monthAgo = new Date();
+    monthAgo.setMonth(monthAgo.getMonth() - 1);
+
+    const [jobsCount, activeAnnouncements, applicationsTotal, passagesThisMonth] = await Promise.all([
+      this.databaseService.job.count({ where: { companyId: company.id, deleted: false } }),
+      this.databaseService.announcement.count({ where: { companyId: company.id, deleted: false, status: 'ACTIVE' } }),
+      this.databaseService.applicationAnnouncement.count({
+        where: { deleted: false, announcement: { companyId: company.id, deleted: false } },
+      }),
+      this.databaseService.passage.count({
+        where: { companyId: company.id, createdAt: { gte: monthAgo } },
+      }),
+    ]);
+
+    return { jobsCount, activeAnnouncements, applicationsTotal, passagesThisMonth };
+  }
+
+  async getMyEmployees(userId: string) {
+    const company = await this.databaseService.company.findFirst({
+      where: { ownerId: userId, deleted: false },
+      select: { id: true },
+    });
+    if (!company) throw new NotFoundException('Entreprise introuvable');
+
+    return this.databaseService.applicationAnnouncement.findMany({
+      where: {
+        deleted: false,
+        status: 'CONFIRMED',
+        announcement: { companyId: company.id, deleted: false },
+      },
+      select: {
+        id: true,
+        status: true,
+        processedAt: true,
+        user: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            auth: { select: { email: true } },
+          },
+        },
+        announcement: { select: { id: true, title: true } },
+      },
+      orderBy: { processedAt: 'desc' },
+    });
+  }
+
+  async getMyApplications(userId: string, status?: string) {
+    const company = await this.databaseService.company.findFirst({
+      where: { ownerId: userId, deleted: false },
+      select: { id: true },
+    });
+    if (!company) throw new NotFoundException('Entreprise introuvable');
+
+    return this.databaseService.applicationAnnouncement.findMany({
+      where: {
+        deleted: false,
+        ...(status ? { status: status as any } : {}),
+        announcement: { companyId: company.id, deleted: false },
+      },
+      select: {
+        id: true,
+        status: true,
+        createdAt: true,
+        user: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            phone: true,
+            auth: { select: { email: true } },
+          },
+        },
+        announcement: {
+          select: {
+            id: true,
+            title: true,
+            company: { select: { id: true, name: true } },
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
     });
   }
 }
