@@ -3,11 +3,10 @@ import { DatabaseService } from '../../database/database.service';
 import { AuthenticatedRequestUser } from '../auth-user.interface';
 import { TokenService } from '../token.service';
 
-const COOKIE_NAME = 'auth_token';
 const ADMIN_COOKIE_NAME = 'auth_token_admin';
 
 @Injectable()
-export class AuthenticatedGuard implements CanActivate {
+export class AuthenticatedAdminGuard implements CanActivate {
   constructor(
     private readonly tokenService: TokenService,
     private readonly databaseService: DatabaseService,
@@ -16,11 +15,9 @@ export class AuthenticatedGuard implements CanActivate {
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest();
 
-    const token = await this.resolveToken(request.cookies ?? {});
+    const token = request.cookies?.[ADMIN_COOKIE_NAME] as string | undefined;
 
-    if (!token) {
-      throw new UnauthorizedException('Token manquant');
-    }
+    if (!token) throw new UnauthorizedException('Token admin manquant');
 
     const payload = this.tokenService.verifyAuthToken(token);
 
@@ -67,36 +64,5 @@ export class AuthenticatedGuard implements CanActivate {
 
     request.user = userContext;
     return true;
-  }
-
-  // Résout le bon token parmi les cookies présents.
-  // Stratégie : utilise le token qui a une session valide en DB.
-  // Si les deux sont valides, préfère auth_token_admin (session admin prioritaire).
-  private async resolveToken(cookies: Record<string, string>): Promise<string | null> {
-    const adminToken = cookies[ADMIN_COOKIE_NAME];
-    const userToken = cookies[COOKIE_NAME];
-
-    if (adminToken && userToken) {
-      // Les deux présents — vérifier lequel a une session DB valide
-      const adminValid = await this.hasValidSession(adminToken);
-      if (adminValid) return adminToken;
-      return userToken;
-    }
-
-    return adminToken ?? userToken ?? null;
-  }
-
-  private async hasValidSession(token: string): Promise<boolean> {
-    try {
-      this.tokenService.verifyAuthToken(token);
-      const tokenHash = this.tokenService.hashToken(token);
-      const session = await this.databaseService.session.findUnique({
-        where: { tokenHash },
-        select: { expiresAt: true },
-      });
-      return !!session && session.expiresAt > new Date();
-    } catch {
-      return false;
-    }
   }
 }

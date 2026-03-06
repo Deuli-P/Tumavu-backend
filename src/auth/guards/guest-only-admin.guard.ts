@@ -2,41 +2,34 @@ import { CanActivate, ExecutionContext, Injectable, UnauthorizedException } from
 import { TokenService } from '../token.service';
 import { DatabaseService } from '../../database/database.service';
 
-const COOKIE_NAME = 'auth_token';
+export const ADMIN_COOKIE_NAME = 'auth_token_admin';
 
 @Injectable()
-export class GuestOnlyGuard implements CanActivate {
+export class GuestOnlyAdminGuard implements CanActivate {
   constructor(
     private readonly tokenService: TokenService,
     private readonly databaseService: DatabaseService,
   ) {}
 
-  // Autorise uniquement les requêtes sans session active EN BASE.
-  // Un JWT valide sans session DB correspondante est traité comme "non connecté".
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest();
-    const token = request.cookies?.[COOKIE_NAME] as string | undefined;
+    const token = request.cookies?.[ADMIN_COOKIE_NAME] as string | undefined;
 
     if (!token) return true;
 
     try {
       this.tokenService.verifyAuthToken(token);
     } catch {
-      // JWT invalide ou expiré → laisser passer
       return true;
     }
 
-    // JWT valide — vérifie que la session existe réellement en base
     const tokenHash = this.tokenService.hashToken(token);
     const session = await this.databaseService.session.findUnique({
       where: { tokenHash },
       select: { expiresAt: true },
     });
 
-    if (!session || session.expiresAt < new Date()) {
-      // Pas de session DB (ou expirée) → cookie orphelin, on laisse passer
-      return true;
-    }
+    if (!session || session.expiresAt < new Date()) return true;
 
     throw new UnauthorizedException('Vous êtes déjà connecté');
   }

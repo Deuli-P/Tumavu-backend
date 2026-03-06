@@ -5,7 +5,9 @@ import { AuthService } from './auth.service';
 import { PasswordService } from './password.service';
 import { TokenService } from './token.service';
 import { GuestOnlyGuard } from './guards/guest-only.guard';
+import { GuestOnlyAdminGuard } from './guards/guest-only-admin.guard';
 import { AuthenticatedGuard } from './guards/authenticated.guard';
+import { AuthenticatedAdminGuard } from './guards/authenticated-admin.guard';
 import { NonOwnerGuard } from './guards/non-owner.guard';
 import { CompanyOwnerGuard } from './guards/company-owner.guard';
 import { AdminGuard } from './guards/admin.guard';
@@ -18,7 +20,9 @@ import { AdminGuard } from './guards/admin.guard';
     PasswordService,
     TokenService,
     GuestOnlyGuard,
+    GuestOnlyAdminGuard,
     AuthenticatedGuard,
+    AuthenticatedAdminGuard,
     NonOwnerGuard,
     CompanyOwnerGuard,
     AdminGuard,
@@ -26,7 +30,9 @@ import { AdminGuard } from './guards/admin.guard';
   exports: [
     TokenService,
     GuestOnlyGuard,
+    GuestOnlyAdminGuard,
     AuthenticatedGuard,
+    AuthenticatedAdminGuard,
     NonOwnerGuard,
     CompanyOwnerGuard,
     AdminGuard,

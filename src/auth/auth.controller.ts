@@ -15,7 +15,9 @@ import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 import { AuthenticatedRequestUser } from './auth-user.interface';
 import { AuthenticatedGuard } from './guards/authenticated.guard';
+import { AuthenticatedAdminGuard } from './guards/authenticated-admin.guard';
 import { GuestOnlyGuard } from './guards/guest-only.guard';
+import { GuestOnlyAdminGuard, ADMIN_COOKIE_NAME } from './guards/guest-only-admin.guard';
 import { TokenService } from './token.service';
 
 const COOKIE_NAME = 'auth_token';
@@ -58,14 +60,14 @@ export class AuthController {
     this.setCookie(res, token);
   }
 
-  @UseGuards(GuestOnlyGuard)
+  @UseGuards(GuestOnlyAdminGuard)
   @Post('login/admin')
   async loginAdmin(
     @Body() dto: LoginDto,
     @Res({ passthrough: true }) res: Response,
   ): Promise<void> {
     const token = await this.authService.loginAdmin(dto);
-    this.setCookie(res, token);
+    this.setCookie(res, token, ADMIN_COOKIE_NAME);
   }
 
   @UseGuards(AuthenticatedGuard)
@@ -74,7 +76,7 @@ export class AuthController {
     return this.authService.getMe(user.authId);
   }
 
-  @UseGuards(AuthenticatedGuard)
+  @UseGuards(AuthenticatedAdminGuard)
   @Get('me-admin')
   async meAdmin(
     @CurrentUser() user: AuthenticatedRequestUser,
@@ -89,8 +91,9 @@ export class AuthController {
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ): Promise<void> {
-    const token = req.cookies?.[COOKIE_NAME] as string | undefined;
+    const token = (req.cookies?.[COOKIE_NAME] ?? req.cookies?.[ADMIN_COOKIE_NAME]) as string | undefined;
     res.clearCookie(COOKIE_NAME, { path: '/' });
+    res.clearCookie(ADMIN_COOKIE_NAME, { path: '/' });
     if (token) {
       await this.authService.logout(token);
     }
@@ -98,15 +101,13 @@ export class AuthController {
 
   // ─── Privé ────────────────────────────────────────────────────────────────────
 
-  private setCookie(res: Response, token: string): void {
-  const isProd = process.env.NODE_ENV === 'production';
-
-  res.cookie(COOKIE_NAME, token, {
-    httpOnly: true,
-    secure: false,            // en dev HTTP
-    sameSite: 'lax',          // ok si on corrige le proxy (voir plus bas)
-    maxAge: this.tokenService.ttlSeconds * 1000,
-    path: '/',
-  });
-}
+  private setCookie(res: Response, token: string, name: string = COOKIE_NAME): void {
+    res.cookie(name, token, {
+      httpOnly: true,
+      secure: false,
+      sameSite: 'lax',
+      maxAge: this.tokenService.ttlSeconds * 1000,
+      path: '/',
+    });
+  }
 }
