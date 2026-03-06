@@ -1,5 +1,5 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { ApplicationAnnouncementStatus } from '@prisma/client';
+import { ApplicationJobStatus } from '@prisma/client';
 import { DatabaseService } from '../database/database.service';
 import { CreateStationDto } from './dto/create-station.dto';
 
@@ -9,7 +9,8 @@ export type StationPayload = {
   country: { id: number; name: string; code: string };
   officeAddress: {
     street: string;
-    number: string | null;
+    streetNumber: string | null;
+    zipCode: string | null;
     locality: string;
     country: { id: number; name: string; code: string };
   };
@@ -29,14 +30,15 @@ export type StationDetail = StationPayload & {
     phone: string | null;
     owner: { firstName: string; lastName: string };
     address: { locality: string; country: { name: string } };
-    _count: { announcements: number; passages: number };
+    _count: { jobOffers: number; passages: number };
   }[];
-  recentAnnouncements: {
+  recentJobOffers: {
     id: number;
     title: string;
-    status: string | null;
+    status: string;
+    contractType: string | null;
     createdAt: Date;
-    job: { title: string } | null;
+    job: { title: string };
     company: { name: string } | null;
     _count: { applications: number };
   }[];
@@ -60,7 +62,8 @@ export class StationService {
         officeAddress: {
           create: {
             street: dto.officeAddress.street,
-            number: dto.officeAddress.number,
+            streetNumber: dto.officeAddress.streetNumber,
+            zipCode: dto.officeAddress.zipCode,
             locality: dto.officeAddress.locality,
             country: { connect: { id: dto.countryId } },
           },
@@ -73,7 +76,8 @@ export class StationService {
         officeAddress: {
           select: {
             street: true,
-            number: true,
+            streetNumber: true,
+            zipCode: true,
             locality: true,
             country: { select: { id: true, name: true, code: true } },
           },
@@ -94,7 +98,8 @@ export class StationService {
         officeAddress: {
           select: {
             street: true,
-            number: true,
+            streetNumber: true,
+            zipCode: true,
             locality: true,
             country: { select: { id: true, name: true, code: true } },
           },
@@ -108,7 +113,7 @@ export class StationService {
             phone: true,
             owner: { select: { firstName: true, lastName: true } },
             address: { select: { locality: true, country: { select: { name: true } } } },
-            _count: { select: { announcements: { where: { deleted: false } }, passages: true } },
+            _count: { select: { jobOffers: { where: { deleted: false } }, passages: true } },
           },
         },
       },
@@ -122,7 +127,7 @@ export class StationService {
     startOfWeek.setHours(0, 0, 0, 0);
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
-    const [passagesWeek, passagesMonth, workerRows, recentAnnouncements] =
+    const [passagesWeek, passagesMonth, workerRows, recentJobOffers] =
       await Promise.all([
         this.databaseService.passage.count({
           where: { company: { stationId: id, deleted: false }, createdAt: { gte: startOfWeek } },
@@ -130,21 +135,22 @@ export class StationService {
         this.databaseService.passage.count({
           where: { company: { stationId: id, deleted: false }, createdAt: { gte: startOfMonth } },
         }),
-        this.databaseService.applicationAnnouncement.findMany({
+        this.databaseService.applicationJob.findMany({
           where: {
             deleted: false,
-            status: ApplicationAnnouncementStatus.CONFIRMED,
-            announcement: { deleted: false, company: { stationId: id, deleted: false } },
+            status: ApplicationJobStatus.ACCEPTED,
+            offer: { deleted: false, company: { stationId: id, deleted: false } },
           },
           select: { userId: true },
           distinct: ['userId'],
         }),
-        this.databaseService.announcement.findMany({
+        this.databaseService.jobOffer.findMany({
           where: { deleted: false, company: { stationId: id, deleted: false } },
           select: {
             id: true,
             title: true,
             status: true,
+            contractType: true,
             createdAt: true,
             job: { select: { title: true } },
             company: { select: { name: true } },
@@ -163,7 +169,7 @@ export class StationService {
         passagesThisMonth: passagesMonth,
         workersCount: workerRows.length,
       },
-      recentAnnouncements,
+      recentJobOffers,
     };
   }
 
@@ -177,7 +183,8 @@ export class StationService {
         officeAddress: {
           select: {
             street: true,
-            number: true,
+            streetNumber: true,
+            zipCode: true,
             locality: true,
             country: { select: { id: true, name: true, code: true } },
           },

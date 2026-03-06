@@ -14,15 +14,6 @@ enum DocumentStatus {
   ARCHIVED
 }
 
-enum ContractType {
-  RESORT
-  CDD
-  CDI
-  FREELANCE
-  STAGE
-  OTHER
-}
-
 enum MinimumEducationLevel {
   NONE
   CAP_BEP
@@ -39,19 +30,60 @@ enum JobStatus {
   PENDING
 }
 
-enum AnnouncementStatus {
-  CLOSED
-  ACTIVE
-  CANCELLED
+enum ExperienceLevel {
+  BEGINNER
+  INTERMEDIATE
+  EXPERIENCED
 }
 
-enum ApplicationAnnouncementStatus {
-  PENDING
-  CONFIRMED
-  REFUSED
-  INTERVIEW
-  SIGNATURE
+enum Season {
+  SUMMER
+  WINTER
+  SPRING
+  AUTUMN
+  ALL_YEAR
+}
+
+enum ScheduleType {
+  DAY
+  NIGHT
+  WEEKEND
+  VARIABLE
+}
+
+enum SalaryType {
+  HOURLY
+  DAILY
+  MONTHLY
+}
+
+enum HousingType {
+  NONE
+  PROVIDED
+  PROVIDED_AND_PAID
+}
+
+enum JobOfferStatus {
+  DRAFT
+  PUBLISHED
   CANCELLED
+  CLOSED
+}
+
+enum ContractOfferType {
+  CDD
+  EXTRA
+  INTERIM
+  CDI
+}
+
+enum ApplicationJobStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+  INTERVIEW
+  TEST
+  PHONE
 }
 
 enum UserJobStatus {
@@ -133,19 +165,20 @@ model User {
 
   auth Auth?
 
-  companies           Company[]               @relation("CompanyOwner")
-  documents           Document[]
-  passages            Passage[]
-  createdJobs         Job[]                   @relation("CreatorJobs")
-  announcements       Announcement[]          @relation("AnnouncementCreator")
-  applications        ApplicationAnnouncement[] @relation("ApplicantApplications")
-  processed           ApplicationAnnouncement[] @relation("ProcessorApplications")
-  userJobs            UserJob[]               @relation("UserJobWorker")
-  assignedJobs        UserJob[]               @relation("UserJobAssigner")
-  invitationsSent     Invitation[]            @relation("InvitationsSent")
-  invitationsReceived Invitation[]            @relation("InvitationsReceived")
-  notificationsReceived Notification[]        @relation("NotificationRecipient")
-  expoPushTokens        ExpoPushToken[]
+  companies                 Company[]        @relation("CompanyOwner")
+  documents                 Document[]
+  passages                  Passage[]
+  createdJobs               Job[]            @relation("CreatorJobs")
+  createdJobOffers          JobOffer[]       @relation("JobOfferCreator")
+  announcements             Announcement[]   @relation("AnnouncementCreator")
+  applications              ApplicationJob[] @relation("ApplicantJobApplications")
+  processedJobApplications  ApplicationJob[] @relation("ProcessorJobApplications")
+  userJobs                  UserJob[]        @relation("UserJobWorker")
+  assignedJobs              UserJob[]        @relation("UserJobAssigner")
+  invitationsSent           Invitation[]     @relation("InvitationsSent")
+  invitationsReceived       Invitation[]     @relation("InvitationsReceived")
+  notificationsReceived     Notification[]   @relation("NotificationRecipient")
+  expoPushTokens            ExpoPushToken[]
 
   @@map("users")
 }
@@ -171,10 +204,10 @@ model Company {
   address Address @relation(fields: [addressId], references: [id])
 
   jobs Job[]
+  jobOffers JobOffer[]
   passages Passage[]
   defaultOptions CompanyDefaultOptions?
   companyBenefits CompanyBenefit[]
-  announcements Announcement[]
   benefitCatalog  Benefit[]
 
   @@map("companies")
@@ -182,13 +215,15 @@ model Company {
 
 model Address {
   id        Int     @id @default(autoincrement())
+  streetNumber String?
   street    String
-  number    String?
+  zipCode    String?
   locality  String
   countryId Int     @map("country_id")
 
   country   Country   @relation(fields: [countryId], references: [id])
   companies Company[]
+  jobOffers JobOffer[]
   stationsAsOffice Station[] @relation("StationOfficeAddress")
 
   @@map("addresses")
@@ -233,27 +268,49 @@ model PermissionRole {
   @@map("permission_role")
 }
 
+// ─── Job Categories ───────────────────────────────────────────────────────────
+
+model JobCategory {
+  id        Int      @id @default(autoincrement())
+  name      String   @unique
+  slug      String   @unique
+  deleted   Boolean  @default(false)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  jobs Job[]
+
+  @@map("job_categories")
+}
+
 // ─── Jobs ─────────────────────────────────────────────────────────────────────
 
 model Job {
-  id           Int           @id @default(autoincrement())
-  title        String
-  description  String?
-  contractType ContractType? @map("contract_type")
-  status       JobStatus?
-  deleted      Boolean       @default(false)
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
-  createdBy    String        @map("created_by")
-  companyId    String        @map("company_id")
+  id                   Int              @id @default(autoincrement())
+  title                String
+  slug                 String
+  description          String?
+  responsibilities     String?
+  requirements         String?
+  skills               String[]
+  experienceLevel      ExperienceLevel? @map("experience_level")
+  physicalRequirements String?          @map("physical_requirements")
+  licences             String[]
+  season               Season?
+  transportRequired    Boolean          @default(false) @map("transport_required")
+  deleted              Boolean          @default(false)
+  createdAt            DateTime         @default(now())
+  updatedAt            DateTime         @updatedAt
+  createdBy            String           @map("created_by")
+  companyId            String           @map("company_id")
+  categoryId           Int?             @map("category_id")
 
-  company       Company        @relation(fields: [companyId], references: [id])
-  creator       User           @relation("CreatorJobs", fields: [createdBy], references: [id])
-  tags          TagJob[]
-  announcements Announcement[]
-  userJobs      UserJob[]
-  invitations   Invitation[]
+  company   Company      @relation(fields: [companyId], references: [id])
+  creator   User         @relation("CreatorJobs", fields: [createdBy], references: [id])
+  category  JobCategory? @relation(fields: [categoryId], references: [id])
+  tags      TagJob[]
+  jobOffers JobOffer[]
 
+  @@unique([companyId, slug])
   @@map("jobs")
 }
 
@@ -278,42 +335,86 @@ model TagJob {
   @@map("tag_job")
 }
 
+// ─── Job Offers ───────────────────────────────────────────────────────────────
+
+model JobOffer {
+  id                  Int                @id @default(autoincrement())
+  jobId               Int                @map("job_id")
+  companyId           String             @map("company_id")
+  createdBy           String             @map("created_by")
+  title               String
+  description         String?
+  startDate           DateTime?          @map("start_date")
+  endDate             DateTime?          @map("end_date")
+  duration            Int?
+  flexibleDates       Boolean            @default(false) @map("flexible_dates")
+  hoursPerWeek        Float?             @map("hours_per_week")
+  schedule            ScheduleType?
+  addressId           Int?               @map("address_id")
+  salaryType          SalaryType?        @map("salary_type")
+  salaryMin           Float?             @map("salary_min")
+  salaryMax           Float?             @map("salary_max")
+  currency            String             @default("EUR")
+  housingProvided     HousingType        @default(NONE) @map("housing_provided")
+  housingCost         Float?             @map("housing_cost")
+  housingDescription  String?            @map("housing_description")
+  mealsProvided       Boolean            @default(false) @map("meals_provided")
+  transportHelp       Boolean            @default(false) @map("transport_help")
+  tips                Boolean            @default(false)
+  bonus               Boolean            @default(false)
+  contractType        ContractOfferType? @map("contract_type")
+  applicationDeadline DateTime?          @map("application_deadline")
+  status              JobOfferStatus     @default(DRAFT)
+  nearTrainStation    Boolean            @default(false) @map("near_train_station")
+  deleted             Boolean            @default(false)
+  createdAt           DateTime           @default(now()) @map("created_at")
+  updatedAt           DateTime           @updatedAt @map("updated_at")
+
+  job          Job              @relation(fields: [jobId], references: [id])
+  company      Company          @relation(fields: [companyId], references: [id])
+  creator      User             @relation("JobOfferCreator", fields: [createdBy], references: [id])
+  address      Address?         @relation(fields: [addressId], references: [id])
+  applications ApplicationJob[]
+  userJobs     UserJob[]
+  invitations  Invitation[]
+
+  @@map("job_offers")
+}
+
+// ─── Application Jobs ─────────────────────────────────────────────────────────
+
+model ApplicationJob {
+  id          Int                  @id @default(autoincrement())
+  offerId     Int                  @map("offer_id")
+  userId      String               @map("user_id")
+  status      ApplicationJobStatus @default(PENDING)
+  message     String?
+  resumeUrl   String?              @map("resume_url")
+  processedBy String?              @map("processed_by")
+  processedAt DateTime?            @map("processed_at")
+  createdAt   DateTime             @default(now()) @map("created_at")
+  deleted     Boolean              @default(false)
+
+  offer     JobOffer @relation(fields: [offerId], references: [id])
+  user      User     @relation("ApplicantJobApplications", fields: [userId], references: [id])
+  processor User?    @relation("ProcessorJobApplications", fields: [processedBy], references: [id])
+
+  @@map("application_jobs")
+}
+
 // ─── Announcements ────────────────────────────────────────────────────────────
 
 model Announcement {
-  id          Int                 @id @default(autoincrement())
+  id          Int      @id @default(autoincrement())
   title       String
   description String?
-  createdBy   String              @map("created_by")
-  status      AnnouncementStatus?
-  deleted     Boolean             @default(false)
-  createdAt   DateTime            @default(now())
-  companyId   String?             @map("company_id")
-  jobId       Int?                @map("job_id")
+  createdBy   String   @map("created_by")
+  deleted     Boolean  @default(false)
+  createdAt   DateTime @default(now())
 
-  creator      User     @relation("AnnouncementCreator", fields: [createdBy], references: [id])
-  company      Company? @relation(fields: [companyId], references: [id])
-  job          Job?     @relation(fields: [jobId], references: [id])
-  applications ApplicationAnnouncement[]
+  creator User @relation("AnnouncementCreator", fields: [createdBy], references: [id])
 
   @@map("annoucements")
-}
-
-model ApplicationAnnouncement {
-  id             Int                            @id @default(autoincrement())
-  announcementId Int                            @map("announcement_id")
-  createdAt      DateTime                       @default(now())
-  userId         String                         @map("user_id")
-  status         ApplicationAnnouncementStatus?
-  deleted        Boolean                        @default(false)
-  processedBy    String?                        @map("processed_by")
-  processedAt    DateTime?                      @map("processed_at")
-
-  announcement Announcement @relation(fields: [announcementId], references: [id])
-  user         User         @relation("ApplicantApplications", fields: [userId], references: [id])
-  processor    User?        @relation("ProcessorApplications", fields: [processedBy], references: [id])
-
-  @@map("application_annoucments")
 }
 
 // ─── Benefits ─────────────────────────────────────────────────────────────────
@@ -398,7 +499,7 @@ model Document {
 model UserJob {
   id         Int           @id @default(autoincrement())
   userId     String        @map("user_id")
-  jobId      Int           @map("job_id")
+  offerId    Int           @map("offer_id")
   status     UserJobStatus @default(ACTIVE)
   assignedBy String        @map("assigned_by")
   startDate  DateTime?     @map("start_date")
@@ -406,9 +507,9 @@ model UserJob {
   createdAt  DateTime      @default(now()) @map("created_at")
   deleted    Boolean       @default(false)
 
-  user     User @relation("UserJobWorker", fields: [userId], references: [id])
-  job      Job  @relation(fields: [jobId], references: [id])
-  assigner User @relation("UserJobAssigner", fields: [assignedBy], references: [id])
+  user     User     @relation("UserJobWorker", fields: [userId], references: [id])
+  offer    JobOffer @relation(fields: [offerId], references: [id])
+  assigner User     @relation("UserJobAssigner", fields: [assignedBy], references: [id])
 
   @@map("user_jobs")
 }
@@ -417,7 +518,7 @@ model Invitation {
   id         Int              @id @default(autoincrement())
   token      String           @unique @default(uuid())
   email      String
-  jobId      Int              @map("job_id")
+  offerId    Int              @map("offer_id")
   status     InvitationStatus @default(PENDING)
   invitedBy  String           @map("invited_by")
   userId     String?          @map("user_id")
@@ -426,9 +527,9 @@ model Invitation {
   createdAt  DateTime         @default(now()) @map("created_at")
   deleted    Boolean          @default(false)
 
-  job     Job   @relation(fields: [jobId], references: [id])
-  inviter User  @relation("InvitationsSent", fields: [invitedBy], references: [id])
-  user    User? @relation("InvitationsReceived", fields: [userId], references: [id])
+  offer   JobOffer @relation(fields: [offerId], references: [id])
+  inviter User     @relation("InvitationsSent", fields: [invitedBy], references: [id])
+  user    User?    @relation("InvitationsReceived", fields: [userId], references: [id])
 
   @@map("invitations")
 }
@@ -443,8 +544,8 @@ model Notification {
   body      String?
   read      Boolean          @default(false)
   readAt    DateTime?        @map("read_at")
-  deepLink  String?          @map("deep_link")  // ex: "tumavu://jobs/42" ou "/app/jobs/42"
-  metadata  Json?            // { jobId?, invitationToken?, applicationId?, companyId? }
+  deepLink  String?          @map("deep_link")
+  metadata  Json?
   createdAt DateTime         @default(now()) @map("created_at")
   deleted   Boolean          @default(false)
 
@@ -457,7 +558,7 @@ model ExpoPushToken {
   id        Int      @id @default(autoincrement())
   userId    String   @map("user_id")
   token     String   @unique
-  deviceId  String?  @map("device_id")   // identifiant appareil (optionnel, pour dédoublonner)
+  deviceId  String?  @map("device_id")
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
   deleted   Boolean  @default(false)

@@ -1,5 +1,22 @@
 import { PrismaClient, RoleType } from '@prisma/client';
 
+// ─── Job Categories ────────────────────────────────────────────────────────────
+
+const jobCategories = [
+  { name: 'Viticulture',             slug: 'viticulture' },
+  { name: 'Maraîchage',              slug: 'maraichage' },
+  { name: 'Arboriculture',           slug: 'arboriculture' },
+  { name: 'Élevage',                 slug: 'elevage' },
+  { name: 'Restauration',            slug: 'restauration' },
+  { name: 'Hôtellerie',              slug: 'hotellerie' },
+  { name: 'Ski / Sports d\'hiver',   slug: 'ski-sports-hiver' },
+  { name: 'Vendanges',               slug: 'vendanges' },
+  { name: 'Cueillette',              slug: 'cueillette' },
+  { name: 'Logistique',              slug: 'logistique' },
+  { name: 'Animation',               slug: 'animation' },
+  { name: 'Entretien espaces verts', slug: 'entretien-espaces-verts' },
+];
+
 const prisma = new PrismaClient();
 
 // ─── Roles ────────────────────────────────────────────────────────────────────
@@ -280,6 +297,16 @@ async function main() {
   }
   console.log(`  ✓ ${tags.length} tags inserees`);
   
+  // Job Categories
+  for (const cat of jobCategories) {
+    await prisma.jobCategory.upsert({
+      where: { slug: cat.slug },
+      update: {},
+      create: cat,
+    });
+  }
+  console.log(`  ✓ ${jobCategories.length} categories de postes inserees`);
+
   console.log('Seed termine avec succes.');
 }
 

@@ -1,5 +1,4 @@
-import { IsEnum, IsOptional, IsString, MinLength } from 'class-validator';
-import { AnnouncementStatus } from '@prisma/client';
+import { IsOptional, IsString, MinLength } from 'class-validator';
 
 export class UpdateAnnonceDto {
   @IsOptional()
@@ -11,8 +10,4 @@ export class UpdateAnnonceDto {
   @IsString()
   @MinLength(1)
   description?: string;
-
-  @IsOptional()
-  @IsEnum(AnnouncementStatus)
-  status?: AnnouncementStatus;
 }

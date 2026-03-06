@@ -3,16 +3,12 @@ import { randomUUID } from 'crypto';
 import { DatabaseService } from '../database/database.service';
 import { PasswordService } from '../auth/password.service';
 import { SupabaseStorageService } from '../storage/supabase-storage.service';
-import { NotificationService } from '../notification/notification.service';
 import { CreateCompanyDto } from './dto/create-company.dto';
 import { CreateCompanyWithOwnerDto } from './dto/create-company-with-owner.dto';
 import { UpsertOptionsDto } from './dto/upsert-options.dto';
 import { CreateBenefitDto } from './dto/create-benefit.dto';
 import { UpdateBenefitDto } from './dto/update-benefit.dto';
 import { UpdateMyCompanyDto } from './dto/update-my-company.dto';
-import { CreateJobDto } from './dto/create-job.dto';
-import { UpdateJobDto } from './dto/update-job.dto';
-import { InviteToJobDto } from './dto/invite-to-job.dto';
 
 export type CompanyListItem = {
   id: string;
@@ -25,7 +21,7 @@ export type CompanyListItem = {
   };
   station: { id: number; name: string };
   owner: { id: string; firstName: string; lastName: string };
-  _count: { jobs: number; announcements: number };
+  _count: { jobs: number; jobOffers: number };
 };
 
 export type CompanyDetail = {
@@ -37,7 +33,8 @@ export type CompanyDetail = {
   createdAt: string;
   address: {
     street: string;
-    number: string | null;
+    streetNumber: string | null;
+    zipCode: string | null;
     locality: string;
     country: { name: string; code: string };
   };
@@ -46,17 +43,15 @@ export type CompanyDetail = {
   jobs: {
     id: number;
     title: string;
-    contractType: string | null;
-    status: string | null;
     tags: { id: number; name: string }[];
-    _count: { announcements: number };
+    _count: { jobOffers: number };
   }[];
-  announcements: {
+  jobOffers: {
     id: number;
     title: string;
-    status: string | null;
+    status: string;
     createdAt: string;
-    jobTitle: string | null;
+    jobTitle: string;
     _count: { applications: number };
   }[];
   kpis: {
@@ -73,7 +68,8 @@ export type CompanyPayload = {
   type: string | null;
   address: {
     street: string;
-    number: string | null;
+    streetNumber: string | null;
+    zipCode: string | null;
     locality: string;
     country: { name: string; code: string };
   };
@@ -88,7 +84,6 @@ export class CompanyService {
     private readonly databaseService: DatabaseService,
     private readonly passwordService: PasswordService,
     private readonly storageService: SupabaseStorageService,
-    private readonly notificationService: NotificationService,
   ) {}
 
   async createCompany(ownerId: string, dto: CreateCompanyDto): Promise<CompanyPayload> {
@@ -103,7 +98,8 @@ export class CompanyService {
         address: {
           create: {
             street: dto.address.street,
-            number: dto.address.number,
+            streetNumber: dto.address.streetNumber,
+            zipCode: dto.address.zipCode,
             locality: dto.address.locality,
             country: { connect: { id: dto.address.countryId } },
           },
@@ -119,7 +115,8 @@ export class CompanyService {
         address: {
           select: {
             street: true,
-            number: true,
+            streetNumber: true,
+            zipCode: true,
             locality: true,
             country: { select: { name: true, code: true } },
           },
@@ -135,7 +132,8 @@ export class CompanyService {
       type: company.type,
       address: {
         street: company.address.street,
-        number: company.address.number,
+        streetNumber: company.address.streetNumber,
+        zipCode: company.address.zipCode,
         locality: company.address.locality,
         country: company.address.country,
       },
@@ -192,7 +190,8 @@ export class CompanyService {
           address: {
             create: {
               street: dto.address.street,
-              number: dto.address.number,
+              streetNumber: dto.address.streetNumber,
+              zipCode: dto.address.zipCode,
               locality: dto.address.locality,
               country: { connect: { id: dto.address.countryId } },
             },
@@ -208,7 +207,8 @@ export class CompanyService {
           address: {
             select: {
               street: true,
-              number: true,
+              streetNumber: true,
+              zipCode: true,
               locality: true,
               country: { select: { name: true, code: true } },
             },
@@ -225,7 +225,8 @@ export class CompanyService {
       type: company.type,
       address: {
         street: company.address.street,
-        number: company.address.number,
+        streetNumber: company.address.streetNumber,
+        zipCode: company.address.zipCode,
         locality: company.address.locality,
         country: company.address.country,
       },
@@ -255,7 +256,8 @@ export class CompanyService {
           address: {
             select: {
               street: true,
-              number: true,
+              streetNumber: true,
+              zipCode: true,
               locality: true,
               country: { select: { name: true, code: true } },
             },
@@ -274,17 +276,15 @@ export class CompanyService {
             select: {
               id: true,
               title: true,
-              contractType: true,
-              status: true,
               tags: {
                 where: { deleted: false },
                 select: { tag: { select: { id: true, name: true } } },
               },
-              _count: { select: { announcements: true } },
+              _count: { select: { jobOffers: true } },
             },
             orderBy: { createdAt: 'desc' },
           },
-          announcements: {
+          jobOffers: {
             where: { deleted: false },
             select: {
               id: true,
@@ -328,18 +328,16 @@ export class CompanyService {
       jobs: company.jobs.map((j) => ({
         id: j.id,
         title: j.title,
-        contractType: j.contractType ?? null,
-        status: j.status ?? null,
         tags: j.tags.map((t) => t.tag),
         _count: j._count,
       })),
-      announcements: company.announcements.map((a) => ({
-        id: a.id,
-        title: a.title,
-        status: a.status ?? null,
-        createdAt: a.createdAt.toISOString(),
-        jobTitle: a.job?.title ?? null,
-        _count: a._count,
+      jobOffers: company.jobOffers.map((o) => ({
+        id: o.id,
+        title: o.title,
+        status: o.status,
+        createdAt: o.createdAt.toISOString(),
+        jobTitle: o.job.title,
+        _count: o._count,
       })),
       kpis: { passagesWeek, passagesMonth },
     };
@@ -361,7 +359,7 @@ export class CompanyService {
         },
         station: { select: { id: true, name: true } },
         owner: { select: { id: true, firstName: true, lastName: true } },
-        _count: { select: { jobs: true, announcements: true } },
+        _count: { select: { jobs: true, jobOffers: true } },
       },
       orderBy: { createdAt: 'desc' },
     });
@@ -501,7 +499,8 @@ export class CompanyService {
         address: {
           select: {
             street: true,
-            number: true,
+            streetNumber: true,
+            zipCode: true,
             locality: true,
             country: { select: { name: true, code: true } },
           },
@@ -544,7 +543,8 @@ export class CompanyService {
         address: {
           select: {
             street: true,
-            number: true,
+            streetNumber: true,
+            zipCode: true,
             locality: true,
             country: { select: { name: true, code: true } },
           },
@@ -564,18 +564,18 @@ export class CompanyService {
     const monthAgo = new Date();
     monthAgo.setMonth(monthAgo.getMonth() - 1);
 
-    const [jobsCount, activeAnnouncements, applicationsTotal, passagesThisMonth] = await Promise.all([
+    const [jobsCount, publishedOffers, applicationsTotal, passagesThisMonth] = await Promise.all([
       this.databaseService.job.count({ where: { companyId: company.id, deleted: false } }),
-      this.databaseService.announcement.count({ where: { companyId: company.id, deleted: false, status: 'ACTIVE' } }),
-      this.databaseService.applicationAnnouncement.count({
-        where: { deleted: false, announcement: { companyId: company.id, deleted: false } },
+      this.databaseService.jobOffer.count({ where: { companyId: company.id, deleted: false, status: 'PUBLISHED' } }),
+      this.databaseService.applicationJob.count({
+        where: { deleted: false, offer: { companyId: company.id, deleted: false } },
       }),
       this.databaseService.passage.count({
         where: { companyId: company.id, createdAt: { gte: monthAgo } },
       }),
     ]);
 
-    return { jobsCount, activeAnnouncements, applicationsTotal, passagesThisMonth };
+    return { jobsCount, publishedOffers, applicationsTotal, passagesThisMonth };
   }
 
   async getMyEmployees(userId: string) {
@@ -589,7 +589,7 @@ export class CompanyService {
       where: {
         deleted: false,
         status: 'ACTIVE',
-        job: { companyId: company.id, deleted: false },
+        offer: { companyId: company.id, deleted: false },
       },
       select: {
         id: true,
@@ -605,291 +605,17 @@ export class CompanyService {
             auth: { select: { email: true } },
           },
         },
-        job: { select: { id: true, title: true } },
+        offer: { select: { id: true, title: true } },
       },
       orderBy: { createdAt: 'desc' },
     });
   }
-
-  // ─── Manager : my jobs ────────────────────────────────────────────────────
 
   async getTags() {
     return this.databaseService.tag.findMany({
       select: { id: true, name: true },
       orderBy: { name: 'asc' },
     });
-  }
-
-  private readonly JOB_SELECT = {
-    id: true,
-    title: true,
-    description: true,
-    contractType: true,
-    status: true,
-    createdAt: true,
-    tags: {
-      where: { deleted: false },
-      select: { tag: { select: { id: true, name: true } } },
-    },
-    _count: { select: { announcements: true } },
-  } as const;
-
-  async getMyJobs(userId: string) {
-    const company = await this.databaseService.company.findFirst({
-      where: { ownerId: userId, deleted: false },
-      select: { id: true },
-    });
-    if (!company) throw new NotFoundException('Entreprise introuvable');
-
-    const jobs = await this.databaseService.job.findMany({
-      where: { companyId: company.id, deleted: false },
-      select: this.JOB_SELECT,
-      orderBy: { createdAt: 'desc' },
-    });
-
-    return jobs.map((j) => ({ ...j, tags: j.tags.map((t) => t.tag) }));
-  }
-
-  async createJob(userId: string, dto: CreateJobDto) {
-    const company = await this.databaseService.company.findFirst({
-      where: { ownerId: userId, deleted: false },
-      select: { id: true },
-    });
-    if (!company) throw new NotFoundException('Entreprise introuvable');
-
-    const job = await this.databaseService.job.create({
-      data: {
-        title: dto.title,
-        description: dto.description,
-        contractType: dto.contractType,
-        status: dto.status,
-        companyId: company.id,
-        createdBy: userId,
-        ...(dto.tagIds?.length && {
-          tags: { create: dto.tagIds.map((tagId) => ({ tagId })) },
-        }),
-      },
-      select: this.JOB_SELECT,
-    });
-
-    return { ...job, tags: job.tags.map((t) => t.tag) };
-  }
-
-  async updateJob(userId: string, jobId: number, dto: UpdateJobDto) {
-    const company = await this.databaseService.company.findFirst({
-      where: { ownerId: userId, deleted: false },
-      select: { id: true },
-    });
-    if (!company) throw new NotFoundException('Entreprise introuvable');
-
-    const job = await this.databaseService.job.findFirst({
-      where: { id: jobId, companyId: company.id, deleted: false },
-      select: { id: true },
-    });
-    if (!job) throw new NotFoundException('Poste introuvable');
-
-    // Sync tags if provided: soft-delete existing, create new
-    if (dto.tagIds !== undefined) {
-      await this.databaseService.$transaction(async (tx) => {
-        await tx.tagJob.updateMany({
-          where: { jobId, deleted: false },
-          data: { deleted: true },
-        });
-        if (dto.tagIds!.length > 0) {
-          await tx.tagJob.createMany({
-            data: dto.tagIds!.map((tagId) => ({ jobId, tagId })),
-          });
-        }
-      });
-    }
-
-    const updated = await this.databaseService.job.update({
-      where: { id: jobId },
-      data: {
-        ...(dto.title !== undefined && { title: dto.title }),
-        ...(dto.description !== undefined && { description: dto.description }),
-        ...(dto.contractType !== undefined && { contractType: dto.contractType }),
-        ...(dto.status !== undefined && { status: dto.status }),
-      },
-      select: this.JOB_SELECT,
-    });
-
-    return { ...updated, tags: updated.tags.map((t) => t.tag) };
-  }
-
-  async getMyJobEmployees(userId: string, jobId: number) {
-    const company = await this.databaseService.company.findFirst({
-      where: { ownerId: userId, deleted: false },
-      select: { id: true },
-    });
-    if (!company) throw new NotFoundException('Entreprise introuvable');
-
-    const job = await this.databaseService.job.findFirst({
-      where: { id: jobId, companyId: company.id, deleted: false },
-      select: { id: true },
-    });
-    if (!job) throw new NotFoundException('Poste introuvable');
-
-    const entries = await this.databaseService.userJob.findMany({
-      where: { jobId, deleted: false, status: 'ACTIVE' },
-      select: {
-        id: true,
-        status: true,
-        createdAt: true,
-        startDate: true,
-        endDate: true,
-        user: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-            phone: true,
-            photoPath: true,
-            auth: { select: { email: true } },
-          },
-        },
-      },
-      orderBy: { createdAt: 'desc' },
-    });
-
-    return entries.map((e) => ({
-      ...e,
-      user: {
-        ...e.user,
-        photoUrl: e.user.photoPath
-          ? this.storageService.getPublicUrl(e.user.photoPath)
-          : null,
-        photoPath: undefined,
-      },
-    }));
-  }
-
-  async getMyJobDetail(userId: string, jobId: number) {
-    const company = await this.databaseService.company.findFirst({
-      where: { ownerId: userId, deleted: false },
-      select: { id: true },
-    });
-    if (!company) throw new NotFoundException('Entreprise introuvable');
-
-    const job = await this.databaseService.job.findFirst({
-      where: { id: jobId, companyId: company.id, deleted: false },
-      select: {
-        id: true,
-        title: true,
-        description: true,
-        contractType: true,
-        status: true,
-        createdAt: true,
-        tags: {
-          where: { deleted: false },
-          select: { tag: { select: { id: true, name: true } } },
-        },
-        announcements: {
-          where: { deleted: false },
-          select: {
-            id: true,
-            title: true,
-            status: true,
-            createdAt: true,
-            _count: { select: { applications: true } },
-          },
-          orderBy: { createdAt: 'desc' },
-        },
-      },
-    });
-
-    if (!job) throw new NotFoundException('Poste introuvable');
-    return { ...job, tags: job.tags.map((t) => t.tag) };
-  }
-
-  async inviteToJob(userId: string, jobId: number, dto: InviteToJobDto) {
-    const company = await this.databaseService.company.findFirst({
-      where: { ownerId: userId, deleted: false },
-      select: { id: true },
-    });
-    if (!company) throw new NotFoundException('Entreprise introuvable');
-
-    const job = await this.databaseService.job.findFirst({
-      where: { id: jobId, companyId: company.id, deleted: false },
-      select: { id: true, title: true },
-    });
-    if (!job) throw new NotFoundException('Poste introuvable');
-
-    const email = dto.email.toLowerCase().trim();
-
-    // Lookup target user by email
-    const auth = await this.databaseService.auth.findFirst({
-      where: { email, deleted: false },
-      select: { id: true, user: { select: { id: true, firstName: true, lastName: true } } },
-    });
-
-    // Récupérer le nom de l'invitant pour les messages de notif
-    const inviter = await this.databaseService.user.findUnique({
-      where: { id: userId },
-      select: { firstName: true, lastName: true },
-    });
-    const inviterName = inviter ? `${inviter.firstName} ${inviter.lastName}` : 'Quelqu\'un';
-
-    // User not found → store Invitation for later email sending
-    if (!auth) {
-      const pendingInvitation = await this.databaseService.invitation.findFirst({
-        where: { email, jobId, status: 'PENDING', deleted: false },
-      });
-      if (!pendingInvitation) {
-        const invitation = await this.databaseService.invitation.create({
-          data: {
-            email,
-            jobId,
-            invitedBy: userId,
-            expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-          },
-        });
-        // Pas de notif possible (pas de compte) — le token sera dans l'email futur
-        // On stocke quand même le deepLink dans l'invitation pour référence
-        void invitation;
-      }
-      return { status: 'no_account' as const };
-    }
-
-    const targetUserId = auth.user!.id;
-
-    // Check if already assigned to this job
-    const existing = await this.databaseService.userJob.findFirst({
-      where: { userId: targetUserId, jobId, deleted: false, status: 'ACTIVE' },
-      select: { id: true },
-    });
-
-    if (existing) {
-      return {
-        status: 'already_assigned' as const,
-        user: { firstName: auth.user!.firstName, lastName: auth.user!.lastName, email },
-      };
-    }
-
-    // Create UserJob directly + notification
-    await this.databaseService.userJob.create({
-      data: {
-        userId: targetUserId,
-        jobId,
-        assignedBy: userId,
-        status: 'ACTIVE',
-      },
-    });
-
-    await this.notificationService.create({
-      userId: targetUserId,
-      type: 'JOB_ASSIGNED',
-      title: `Vous avez été assigné à un poste`,
-      body: `${inviterName} vous a assigné au poste «${job.title}».`,
-      deepLink: `tumavu://jobs/${jobId}`,
-      metadata: { jobId, companyId: company.id },
-    });
-
-    return {
-      status: 'assigned' as const,
-      user: { firstName: auth.user!.firstName, lastName: auth.user!.lastName, email },
-      job: { id: job.id, title: job.title },
-    };
   }
 
   async getMyApplications(userId: string, status?: string) {
@@ -899,11 +625,11 @@ export class CompanyService {
     });
     if (!company) throw new NotFoundException('Entreprise introuvable');
 
-    return this.databaseService.applicationAnnouncement.findMany({
+    return this.databaseService.applicationJob.findMany({
       where: {
         deleted: false,
         ...(status ? { status: status as any } : {}),
-        announcement: { companyId: company.id, deleted: false },
+        offer: { companyId: company.id, deleted: false },
       },
       select: {
         id: true,
@@ -918,7 +644,7 @@ export class CompanyService {
             auth: { select: { email: true } },
           },
         },
-        announcement: {
+        offer: {
           select: {
             id: true,
             title: true,

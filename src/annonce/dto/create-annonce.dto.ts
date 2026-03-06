@@ -1,5 +1,4 @@
-import { IsEnum, IsInt, IsOptional, IsPositive, IsString, IsUUID, MinLength } from 'class-validator';
-import { AnnouncementStatus } from '@prisma/client';
+import { IsOptional, IsString, MinLength } from 'class-validator';
 
 export class CreateAnnonceDto {
   @IsString()
@@ -10,16 +9,4 @@ export class CreateAnnonceDto {
   @IsString()
   @MinLength(1)
   description?: string;
-
-  @IsUUID()
-  companyId!: string;
-
-  @IsOptional()
-  @IsInt()
-  @IsPositive()
-  jobId?: number;
-
-  @IsOptional()
-  @IsEnum(AnnouncementStatus)
-  status?: AnnouncementStatus;
 }

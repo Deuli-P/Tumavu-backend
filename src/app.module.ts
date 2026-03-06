@@ -19,6 +19,9 @@ import { DashboardModule } from './dashboard/dashboard.module';
 import { TagModule } from './tag/tag.module';
 import { InviteModule } from './invite/invite.module';
 import { NotificationModule } from './notification/notification.module';
+import { JobCategoryModule } from './job-category/job-category.module';
+import { JobModule } from './job/job.module';
+import { JobOfferModule } from './job-offer/job-offer.module';
 
 // Module racine: il assemble la configuration, les modules, controllers et services.
 @Module({
@@ -45,6 +48,9 @@ import { NotificationModule } from './notification/notification.module';
     TagModule,
     InviteModule,
     NotificationModule,
+    JobCategoryModule,
+    JobModule,
+    JobOfferModule,
   ],
   controllers: [AppController],
   providers: [AppService],

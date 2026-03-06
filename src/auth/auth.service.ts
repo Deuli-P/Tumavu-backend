@@ -268,6 +268,34 @@ export class AuthService {
     await this.databaseService.session.deleteMany({ where: { tokenHash } });
   }
 
+  async createAdmin(dto: { firstName: string; lastName: string; email: string; password: string }) {
+    const existing = await this.databaseService.auth.findFirst({
+      where: { email: dto.email.toLowerCase().trim(), deleted: false },
+      select: { id: true },
+    });
+    if (existing) throw new ConflictException('Un compte avec cet email existe déjà');
+
+    const [passwordHash, adminRole] = await Promise.all([
+      this.passwordService.hash(dto.password),
+      this.databaseService.role.findFirstOrThrow({
+        where: { type: 'ADMIN' },
+        select: { id: true, value: true },
+      }),
+    ]);
+
+    const id = randomUUID();
+    await this.databaseService.$transaction(async (tx) => {
+      await tx.user.create({
+        data: { id, firstName: dto.firstName, lastName: dto.lastName, roleId: adminRole.id },
+      });
+      await tx.auth.create({
+        data: { id, email: dto.email.toLowerCase().trim(), password: passwordHash },
+      });
+    });
+
+    return { id, email: dto.email.toLowerCase().trim(), role: adminRole.value };
+  }
+
   // ─── Privé ────────────────────────────────────────────────────────────────────
 
   private assertLoginAs(loginAs: LoginAs, isAdmin: boolean, isCompanyOwner: boolean): void {

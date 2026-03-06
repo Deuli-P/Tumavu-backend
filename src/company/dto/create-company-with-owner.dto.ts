@@ -21,7 +21,12 @@ class CreateCompanyWithOwnerAddressDto {
 
   @IsOptional()
   @IsString()
-  number?: string;
+  @MinLength(1)
+  streetNumber?: string;
+
+  @IsOptional()
+  @IsString()
+  zipCode?: string;
 
   @IsString()
   @MinLength(1)

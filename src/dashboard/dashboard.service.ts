@@ -13,7 +13,7 @@ export class DashboardService {
     const [
       companiesTotal,
       companiesThisMonth,
-      announcementsTotal,
+      jobOffersTotal,
       activeUsersThisMonth,
       newUsersThisMonth,
       usersCount,
@@ -25,7 +25,7 @@ export class DashboardService {
 
       this.db.company.count({ where: { deleted: false, createdAt: { gte: startOfMonth } } }),
 
-      this.db.announcement.count({ where: { deleted: false } }),
+      this.db.jobOffer.count({ where: { deleted: false } }),
 
       this.db.auth.count({
         where: {
@@ -64,7 +64,7 @@ export class DashboardService {
           name: true,
           createdAt: true,
           address: { select: { locality: true, country: { select: { name: true } } } },
-          _count: { select: { announcements: { where: { deleted: false } }, passages: true } },
+          _count: { select: { jobOffers: { where: { deleted: false } }, passages: true } },
         },
         orderBy: { createdAt: 'desc' },
         take: 5,
@@ -78,7 +78,7 @@ export class DashboardService {
       stats: {
         companiesTotal,
         companiesThisMonth,
-        announcementsTotal,
+        jobOffersTotal,
         activeUsersThisMonth,
         newUsersThisMonth,
       },

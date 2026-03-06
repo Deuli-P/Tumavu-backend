@@ -17,7 +17,7 @@ export class InviteService {
         email: true,
         status: true,
         expiresAt: true,
-        job: { select: { id: true, title: true, contractType: true } },
+        offer: { select: { id: true, title: true, contractType: true } },
         inviter: { select: { firstName: true, lastName: true } },
       },
     });
@@ -48,12 +48,12 @@ export class InviteService {
       where: { token, deleted: false },
       select: {
         id: true,
-        jobId: true,
+        offerId: true,
         status: true,
         expiresAt: true,
         email: true,
         invitedBy: true,
-        job: { select: { id: true, title: true } },
+        offer: { select: { id: true, title: true } },
       },
     });
 
@@ -70,7 +70,7 @@ export class InviteService {
 
     // Check if already assigned
     const existing = await this.databaseService.userJob.findFirst({
-      where: { userId, jobId: invitation.jobId, deleted: false, status: 'ACTIVE' },
+      where: { userId, offerId: invitation.offerId, deleted: false, status: 'ACTIVE' },
     });
 
     // Fetch worker name for notification
@@ -84,7 +84,7 @@ export class InviteService {
         await tx.userJob.create({
           data: {
             userId,
-            jobId: invitation.jobId,
+            offerId: invitation.offerId,
             assignedBy: userId,
             status: 'ACTIVE',
           },
@@ -103,11 +103,11 @@ export class InviteService {
       userId: invitation.invitedBy,
       type: 'INVITATION_RECEIVED',
       title: 'Invitation acceptée',
-      body: `${workerName} a accepté votre invitation pour le poste «${invitation.job.title}».`,
-      deepLink: `/app/jobs/${invitation.jobId}`,
-      metadata: { jobId: invitation.jobId, workerUserId: userId },
+      body: `${workerName} a accepté votre invitation pour le poste «${invitation.offer.title}».`,
+      deepLink: `/app/job-offer/${invitation.offerId}`,
+      metadata: { offerId: invitation.offerId, workerUserId: userId },
     });
 
-    return { success: true, jobId: invitation.jobId };
+    return { success: true, offerId: invitation.offerId };
   }
 }

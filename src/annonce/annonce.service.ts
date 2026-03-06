@@ -1,65 +1,30 @@
 import {
-  ConflictException,
   ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { ApplicationAnnouncementStatus } from '@prisma/client';
 import { DatabaseService } from '../database/database.service';
-import { NotificationService } from '../notification/notification.service';
 import { CreateAnnonceDto } from './dto/create-annonce.dto';
 import { UpdateAnnonceDto } from './dto/update-annonce.dto';
-import { ListAnnonceAdminDto } from './dto/list-annonce-admin.dto';
 
 const ANNONCE_SELECT = {
   id: true,
   title: true,
   description: true,
-  status: true,
   createdAt: true,
   createdBy: true,
-  jobId: true,
-  company: {
-    select: {
-      id: true,
-      name: true,
-      phone: true,
-      type: true,
-      address: {
-        select: {
-          locality: true,
-          country: { select: { name: true } },
-        },
-      },
-    },
-  },
 } as const;
 
 @Injectable()
 export class AnnonceService {
-  constructor(
-    private readonly databaseService: DatabaseService,
-    private readonly notificationService: NotificationService,
-  ) {}
+  constructor(private readonly databaseService: DatabaseService) {}
 
   async create(userId: string, dto: CreateAnnonceDto) {
-    const company = await this.databaseService.company.findFirst({
-      where: { id: dto.companyId, ownerId: userId, deleted: false },
-      select: { id: true },
-    });
-
-    if (!company) {
-      throw new NotFoundException('Entreprise introuvable ou non autorisee');
-    }
-
     return this.databaseService.announcement.create({
       data: {
         title: dto.title,
         description: dto.description,
-        status: dto.status,
         createdBy: userId,
-        companyId: dto.companyId,
-        jobId: dto.jobId,
       },
       select: ANNONCE_SELECT,
     });
@@ -73,7 +38,6 @@ export class AnnonceService {
       data: {
         title: dto.title,
         description: dto.description,
-        status: dto.status,
       },
       select: ANNONCE_SELECT,
     });
@@ -95,363 +59,12 @@ export class AnnonceService {
     });
   }
 
-  async listAdmin(dto: ListAnnonceAdminDto = {}) {
+  findAll() {
     return this.databaseService.announcement.findMany({
-      where: {
-        deleted: false,
-        ...(dto.stationIds?.length
-          ? { company: { stationId: { in: dto.stationIds } } }
-          : {}),
-        ...(dto.tagIds?.length
-          ? {
-              job: {
-                tags: {
-                  some: { tagId: { in: dto.tagIds }, deleted: false },
-                },
-              },
-            }
-          : {}),
-      },
-      select: {
-        id: true,
-        title: true,
-        status: true,
-        createdAt: true,
-        job: {
-          select: {
-            id: true,
-            title: true,
-            tags: {
-              where: { deleted: false },
-              select: { tag: { select: { id: true, name: true } } },
-            },
-          },
-        },
-        company: {
-          select: {
-            id: true,
-            name: true,
-            station: { select: { id: true, name: true } },
-          },
-        },
-        _count: { select: { applications: true } },
-      },
-      orderBy: { createdAt: 'desc' },
-    });
-  }
-
-  async listAdminTags() {
-    const tags = await this.databaseService.tag.findMany({
-      where: {
-        jobs: {
-          some: {
-            deleted: false,
-            job: {
-              announcements: { some: { deleted: false } },
-            },
-          },
-        },
-      },
-      select: { id: true, name: true },
-      orderBy: { name: 'asc' },
-    });
-    return tags;
-  }
-
-  async listApplicationsAdmin(filters: {
-    status?: string;
-    companyId?: string;
-    stationId?: number;
-  } = {}) {
-    return this.databaseService.applicationAnnouncement.findMany({
-      where: {
-        deleted: false,
-        ...(filters.status ? { status: filters.status as ApplicationAnnouncementStatus } : {}),
-        announcement: {
-          deleted: false,
-          ...(filters.companyId ? { companyId: filters.companyId } : {}),
-          ...(filters.stationId
-            ? { company: { stationId: filters.stationId } }
-            : {}),
-        },
-      },
-      select: {
-        id: true,
-        status: true,
-        createdAt: true,
-        user: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-            auth: { select: { email: true } },
-          },
-        },
-        announcement: {
-          select: {
-            id: true,
-            title: true,
-            company: { select: { id: true, name: true, station: { select: { id: true, name: true } } } },
-          },
-        },
-      },
-      orderBy: { createdAt: 'desc' },
-    });
-  }
-
-  async findOneAdmin(id: number) {
-    return this.databaseService.announcement.findFirst({
-      where: { id, deleted: false },
-      select: {
-        id: true,
-        title: true,
-        description: true,
-        status: true,
-        createdAt: true,
-        job: { select: { id: true, title: true, contractType: true } },
-        company: {
-          select: {
-            id: true,
-            name: true,
-            phone: true,
-            type: true,
-            address: { select: { locality: true, country: { select: { name: true } } } },
-          },
-        },
-        applications: {
-          where: { deleted: false },
-          select: {
-            id: true,
-            status: true,
-            createdAt: true,
-            user: {
-              select: {
-                id: true,
-                firstName: true,
-                lastName: true,
-                phone: true,
-                country: { select: { name: true } },
-                auth: { select: { email: true } },
-              },
-            },
-          },
-          orderBy: { createdAt: 'desc' },
-        },
-      },
-    });
-  }
-
-  findAll(companyId?: string) {
-    return this.databaseService.announcement.findMany({
-      where: {
-        deleted: false,
-        ...(companyId ? { companyId } : {}),
-      },
+      where: { deleted: false },
       select: ANNONCE_SELECT,
       orderBy: { createdAt: 'desc' },
     });
-  }
-
-  async assign(creatorId: string, announcementId: number, targetUserId: string): Promise<void> {
-    await this.checkOwnership(creatorId, announcementId);
-
-    const targetUser = await this.databaseService.user.findFirst({
-      where: { id: targetUserId, deleted: false },
-      select: { id: true },
-    });
-
-    if (!targetUser) {
-      throw new NotFoundException('Utilisateur introuvable');
-    }
-
-    const existingApplication = await this.databaseService.applicationAnnouncement.findFirst({
-      where: { announcementId, userId: targetUserId, deleted: false },
-      select: { id: true },
-    });
-
-    if (existingApplication) {
-      const alreadyConfirmed = await this.databaseService.applicationAnnouncement.findFirst({
-        where: { announcementId, status: ApplicationAnnouncementStatus.CONFIRMED, deleted: false },
-        select: { id: true },
-      });
-
-      if (alreadyConfirmed && alreadyConfirmed.id !== existingApplication.id) {
-        throw new ConflictException('Cette annonce a deja un candidat confirme');
-      }
-
-      await this.databaseService.applicationAnnouncement.update({
-        where: { id: existingApplication.id },
-        data: { status: ApplicationAnnouncementStatus.CONFIRMED, processedBy: creatorId, processedAt: new Date() },
-      });
-    } else {
-      await this.databaseService.applicationAnnouncement.create({
-        data: {
-          announcementId,
-          userId: targetUserId,
-          status: ApplicationAnnouncementStatus.CONFIRMED,
-          processedBy: creatorId,
-          processedAt: new Date(),
-        },
-      });
-    }
-  }
-
-  async findApplicationsForManager(userId: string, id: number) {
-    const annonce = await this.databaseService.announcement.findFirst({
-      where: { id, deleted: false },
-      select: { createdBy: true },
-    });
-    if (!annonce) throw new NotFoundException('Annonce introuvable');
-    if (annonce.createdBy !== userId) throw new ForbiddenException('Non autorise');
-
-    return this.databaseService.announcement.findFirst({
-      where: { id, deleted: false },
-      select: {
-        id: true,
-        title: true,
-        description: true,
-        status: true,
-        createdAt: true,
-        job: { select: { id: true, title: true, contractType: true } },
-        company: {
-          select: {
-            id: true,
-            name: true,
-            phone: true,
-            type: true,
-            address: { select: { locality: true, country: { select: { name: true } } } },
-          },
-        },
-        applications: {
-          where: { deleted: false },
-          select: {
-            id: true,
-            status: true,
-            createdAt: true,
-            user: {
-              select: {
-                id: true,
-                firstName: true,
-                lastName: true,
-                phone: true,
-                country: { select: { name: true } },
-                auth: { select: { email: true } },
-              },
-            },
-          },
-          orderBy: { createdAt: 'desc' },
-        },
-      },
-    });
-  }
-
-  private readonly APPLICATION_STATUS_LABELS: Record<string, string> = {
-    PENDING: 'en attente',
-    CONFIRMED: 'confirmée',
-    REFUSED: 'refusée',
-    INTERVIEW: 'entretien planifié',
-    SIGNATURE: 'signature en cours',
-    CANCELLED: 'annulée',
-  };
-
-  async updateApplicationStatus(managerId: string, applicationId: number, status: ApplicationAnnouncementStatus) {
-    const application = await this.databaseService.applicationAnnouncement.findFirst({
-      where: { id: applicationId, deleted: false },
-      select: {
-        id: true,
-        userId: true,
-        announcementId: true,
-        announcement: {
-          select: {
-            id: true,
-            title: true,
-            createdBy: true,
-            jobId: true,
-          },
-        },
-      },
-    });
-
-    if (!application) throw new NotFoundException('Candidature introuvable');
-    if (application.announcement.createdBy !== managerId) throw new ForbiddenException('Non autorisé');
-
-    await this.databaseService.applicationAnnouncement.update({
-      where: { id: applicationId },
-      data: { status, processedBy: managerId, processedAt: new Date() },
-    });
-
-    // Notifier le candidat
-    const label = this.APPLICATION_STATUS_LABELS[status] ?? status.toLowerCase();
-    await this.notificationService.create({
-      userId: application.userId,
-      type: 'APPLICATION_STATUS',
-      title: 'Statut de candidature mis à jour',
-      body: `Votre candidature pour «${application.announcement.title}» est désormais ${label}.`,
-      deepLink: `tumavu://applications/${applicationId}`,
-      metadata: {
-        applicationId,
-        announcementId: application.announcementId,
-        jobId: application.announcement.jobId,
-        status,
-      },
-    });
-
-    return { id: applicationId, status };
-  }
-
-  async apply(userId: string, announcementId: number) {
-    const announcement = await this.databaseService.announcement.findFirst({
-      where: { id: announcementId, deleted: false, status: 'ACTIVE' },
-      select: {
-        id: true,
-        title: true,
-        createdBy: true,
-        jobId: true,
-        company: { select: { id: true, name: true } },
-      },
-    });
-
-    if (!announcement) throw new NotFoundException('Annonce introuvable ou fermée');
-
-    const existing = await this.databaseService.applicationAnnouncement.findFirst({
-      where: { announcementId, userId, deleted: false },
-      select: { id: true },
-    });
-
-    if (existing) throw new ConflictException('Vous avez déjà postulé à cette annonce');
-
-    const application = await this.databaseService.applicationAnnouncement.create({
-      data: {
-        announcementId,
-        userId,
-        status: ApplicationAnnouncementStatus.PENDING,
-      },
-      select: { id: true, status: true, createdAt: true },
-    });
-
-    // Récupérer le nom du candidat pour la notif
-    const applicant = await this.databaseService.user.findUnique({
-      where: { id: userId },
-      select: { firstName: true, lastName: true },
-    });
-    const applicantName = applicant ? `${applicant.firstName} ${applicant.lastName}` : 'Un candidat';
-
-    // Notifier le manager (créateur de l'annonce)
-    await this.notificationService.create({
-      userId: announcement.createdBy,
-      type: 'APPLICATION_RECEIVED',
-      title: 'Nouvelle candidature',
-      body: `${applicantName} a postulé à votre annonce «${announcement.title}».`,
-      deepLink: `/app/jobs/${announcement.jobId}/annonces/${announcementId}`,
-      metadata: {
-        applicationId: application.id,
-        announcementId,
-        jobId: announcement.jobId,
-        companyId: announcement.company?.id,
-      },
-    });
-
-    return application;
   }
 
   private async checkOwnership(userId: string, id: number): Promise<void> {
