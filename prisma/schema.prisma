@@ -86,6 +86,12 @@ enum ApplicationJobStatus {
   PHONE
 }
 
+enum AnnouncementStatus {
+  DRAFT
+  PUBLISHED
+  DELETED
+}
+
 enum UserJobStatus {
   ACTIVE
   COMPLETED
@@ -405,16 +411,43 @@ model ApplicationJob {
 // ─── Announcements ────────────────────────────────────────────────────────────
 
 model Announcement {
-  id          Int      @id @default(autoincrement())
+  id          Int                @id @default(autoincrement())
   title       String
   description String?
-  createdBy   String   @map("created_by")
-  deleted     Boolean  @default(false)
-  createdAt   DateTime @default(now())
+  status      AnnouncementStatus @default(DRAFT)
+  publishedAt DateTime?          @map("published_at")
+  createdBy   String             @map("created_by")
+  deleted     Boolean            @default(false)
+  createdAt   DateTime           @default(now()) @map("created_at")
 
-  creator User @relation("AnnouncementCreator", fields: [createdBy], references: [id])
+  creator     User                     @relation("AnnouncementCreator", fields: [createdBy], references: [id])
+  attachments AnnouncementAttachment[]
 
   @@map("annoucements")
+}
+
+model Attachment {
+  id        Int      @id @default(autoincrement())
+  filename  String
+  url       String
+  mimeType  String?  @map("mime_type")
+  size      Int?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  announcements AnnouncementAttachment[]
+
+  @@map("attachments")
+}
+
+model AnnouncementAttachment {
+  announcementId Int @map("announcement_id")
+  attachmentId   Int @map("attachment_id")
+
+  announcement Announcement @relation(fields: [announcementId], references: [id])
+  attachment   Attachment   @relation(fields: [attachmentId], references: [id])
+
+  @@id([announcementId, attachmentId])
+  @@map("announcement_attachments")
 }
 
 // ─── Benefits ─────────────────────────────────────────────────────────────────

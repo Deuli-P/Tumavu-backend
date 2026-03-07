@@ -7,8 +7,10 @@ import {
   ParseIntPipe,
   Post,
   Put,
+  Query,
   UseGuards,
 } from '@nestjs/common';
+import { AnnouncementStatus } from '@prisma/client';
 import { AuthenticatedGuard } from '../auth/guards/authenticated.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { AuthenticatedRequestUser } from '../auth/auth-user.interface';
@@ -30,8 +32,8 @@ export class AnnonceController {
   }
 
   @Get()
-  findAll() {
-    return this.annonceService.findAll();
+  findAll(@Query('status') status?: AnnouncementStatus) {
+    return this.annonceService.findAll(status);
   }
 
   @Get(':id')
