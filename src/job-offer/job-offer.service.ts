@@ -201,6 +201,64 @@ export class JobOfferService {
     });
   }
 
+  async browse(filters: { countryId?: number; tagId?: number } = {}) {
+    return this.databaseService.jobOffer.findMany({
+      where: {
+        deleted: false,
+        status: JobOfferStatus.PUBLISHED,
+        ...(filters.countryId
+          ? { company: { address: { countryId: filters.countryId } } }
+          : {}),
+        ...(filters.tagId
+          ? { job: { tags: { some: { tagId: filters.tagId, deleted: false } } } }
+          : {}),
+      },
+      select: {
+        id: true,
+        title: true,
+        description: true,
+        contractType: true,
+        startDate: true,
+        endDate: true,
+        duration: true,
+        hoursPerWeek: true,
+        salaryType: true,
+        salaryMin: true,
+        salaryMax: true,
+        currency: true,
+        housingProvided: true,
+        mealsProvided: true,
+        transportHelp: true,
+        applicationDeadline: true,
+        createdAt: true,
+        job: {
+          select: {
+            title: true,
+            experienceLevel: true,
+            season: true,
+            category: { select: { name: true } },
+            tags: {
+              where: { deleted: false },
+              select: { tag: { select: { id: true, name: true } } },
+            },
+          },
+        },
+        company: {
+          select: {
+            name: true,
+            address: {
+              select: {
+                locality: true,
+                country: { select: { id: true, name: true, code: true } },
+              },
+            },
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
   async findOne(offerId: number) {
     const offer = await this.databaseService.jobOffer.findFirst({
       where: { id: offerId, deleted: false },

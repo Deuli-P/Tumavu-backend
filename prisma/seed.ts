@@ -1,6 +1,7 @@
 import { PrismaClient, RoleType, AnnouncementStatus, JobOfferStatus, ContractOfferType, ExperienceLevel, Season } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 
+
 // ─── Job Categories ────────────────────────────────────────────────────────────
 
 const jobCategories = [

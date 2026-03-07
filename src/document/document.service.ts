@@ -24,14 +24,15 @@ export class DocumentService {
   async create(userId: string, file: Express.Multer.File) {
     this.validatePdf(file);
 
-    const storagePath = `${userId}/cv/cv_${Date.now()}.pdf`;
+    const filename = file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_');
+    const storagePath = `${userId}/cv/${Date.now()}_${filename}`;
 
     await this.storageService.uploadFile(storagePath, file.buffer, {
       contentType: 'application/pdf',
-      upsert: true,
+      upsert: false,
     });
 
-    return this.databaseService.document.create({
+    const doc = await this.databaseService.document.create({
       data: {
         slug: storagePath,
         status: DocumentStatus.ACTIVE,
@@ -39,14 +40,18 @@ export class DocumentService {
       },
       select: DOCUMENT_SELECT,
     });
+
+    return { ...doc, url: this.storageService.getPublicUrl(storagePath) };
   }
 
-  findAll(userId: string) {
-    return this.databaseService.document.findMany({
+  async findAll(userId: string) {
+    const docs = await this.databaseService.document.findMany({
       where: { userId, deleted: false },
       select: DOCUMENT_SELECT,
       orderBy: { createdAt: 'desc' },
     });
+
+    return docs.map((d) => ({ ...d, url: this.storageService.getPublicUrl(d.slug) }));
   }
 
   async findOne(userId: string, id: number) {
@@ -56,18 +61,19 @@ export class DocumentService {
     });
 
     if (!doc) throw new NotFoundException('Document introuvable');
-    return doc;
+    return { ...doc, url: this.storageService.getPublicUrl(doc.slug) };
   }
 
   async replace(userId: string, id: number, file: Express.Multer.File) {
     await this.checkOwnership(userId, id);
     this.validatePdf(file);
 
-    const storagePath = `${userId}/cv/cv_${Date.now()}.pdf`;
+    const filename = file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_');
+    const storagePath = `${userId}/cv/${Date.now()}_${filename}`;
 
     await this.storageService.uploadFile(storagePath, file.buffer, {
       contentType: 'application/pdf',
-      upsert: true,
+      upsert: false,
     });
 
     // Archive l'ancien + crée le nouveau dans une transaction.
@@ -86,7 +92,7 @@ export class DocumentService {
       }),
     ]);
 
-    return created;
+    return { ...created, url: this.storageService.getPublicUrl(storagePath) };
   }
 
   async remove(userId: string, id: number): Promise<void> {

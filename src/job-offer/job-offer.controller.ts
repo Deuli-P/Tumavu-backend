@@ -45,6 +45,17 @@ export class JobOfferController {
     return this.jobOfferService.findAll(user.userId, status);
   }
 
+  @Get('browse')
+  browse(
+    @Query('countryId') countryId?: string,
+    @Query('tagId') tagId?: string,
+  ) {
+    return this.jobOfferService.browse({
+      countryId: countryId ? Number(countryId) : undefined,
+      tagId: tagId ? Number(tagId) : undefined,
+    });
+  }
+
   @Get('admin')
   @UseGuards(AdminGuard)
   listAdmin(@Query() dto: ListJobOfferAdminDto) {

@@ -23,6 +23,7 @@ import { JobCategoryModule } from './job-category/job-category.module';
 import { JobModule } from './job/job.module';
 import { JobOfferModule } from './job-offer/job-offer.module';
 import { KeepaliveModule } from './keepalive/keepalive.module';
+import { PostModule } from './post/post.module';
 
 // Module racine: il assemble la configuration, les modules, controllers et services.
 @Module({
@@ -53,6 +54,7 @@ import { KeepaliveModule } from './keepalive/keepalive.module';
     JobModule,
     JobOfferModule,
     KeepaliveModule,
+    PostModule,
   ],
   controllers: [AppController],
   providers: [AppService],
