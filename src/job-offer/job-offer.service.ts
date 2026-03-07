@@ -201,8 +201,8 @@ export class JobOfferService {
     });
   }
 
-  async browse(filters: { countryId?: number; tagId?: number } = {}) {
-    return this.databaseService.jobOffer.findMany({
+  async browse(userId: string, filters: { countryId?: number; tagId?: number } = {}) {
+    const offers = await this.databaseService.jobOffer.findMany({
       where: {
         deleted: false,
         status: JobOfferStatus.PUBLISHED,
@@ -231,6 +231,11 @@ export class JobOfferService {
         transportHelp: true,
         applicationDeadline: true,
         createdAt: true,
+        applications: {
+          where: { userId, deleted: false },
+          select: { id: true },
+          take: 1,
+        },
         job: {
           select: {
             title: true,
@@ -257,6 +262,11 @@ export class JobOfferService {
       },
       orderBy: { createdAt: 'desc' },
     });
+
+    return offers.map(({ applications, ...offer }) => ({
+      ...offer,
+      hasApplied: applications.length > 0,
+    }));
   }
 
   async findOne(offerId: number) {

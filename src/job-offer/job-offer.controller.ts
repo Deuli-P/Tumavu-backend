@@ -47,10 +47,11 @@ export class JobOfferController {
 
   @Get('browse')
   browse(
+    @CurrentUser() user: AuthenticatedRequestUser,
     @Query('countryId') countryId?: string,
     @Query('tagId') tagId?: string,
   ) {
-    return this.jobOfferService.browse({
+    return this.jobOfferService.browse(user.userId, {
       countryId: countryId ? Number(countryId) : undefined,
       tagId: tagId ? Number(tagId) : undefined,
     });

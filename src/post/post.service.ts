@@ -29,7 +29,6 @@ export class PostService {
   constructor(private readonly db: DatabaseService) {}
 
   async create(userId: string, dto: CreatePostDto) {
-    // Si l'auteur est manager, on récupère sa company pour le champ companyId
     const company = await this.db.company.findFirst({
       where: { ownerId: userId, deleted: false },
       select: { id: true },
@@ -49,9 +48,6 @@ export class PostService {
     });
   }
 
-  // Posts visibles par l'utilisateur courant :
-  // - tous les posts PUBLIC
-  // - les posts COMPANY dont la companyId correspond à une company où le user travaille
   async getFeed(userId: string) {
     const userJobCompanyIds = await this.db.userJob.findMany({
       where: { userId, deleted: false },
@@ -62,36 +58,51 @@ export class PostService {
       .map((uj) => uj.offer?.companyId)
       .filter((id): id is string => !!id);
 
-    // Inclure aussi les companies dont l'user est owner
     const ownedCompanies = await this.db.company.findMany({
       where: { ownerId: userId, deleted: false },
       select: { id: true },
     });
     const allCompanyIds = [...new Set([...companyIds, ...ownedCompanies.map((c) => c.id)])];
 
-    return this.db.post.findMany({
+    const posts = await this.db.post.findMany({
       where: {
         deleted: false,
         OR: [
           { visibility: PostVisibility.PUBLIC },
-          {
-            visibility: PostVisibility.COMPANY,
-            companyId: { in: allCompanyIds },
-          },
+          { visibility: PostVisibility.COMPANY, companyId: { in: allCompanyIds } },
         ],
       },
-      select: POST_SELECT,
+      select: {
+        ...POST_SELECT,
+        reads: {
+          where: { userId },
+          select: { readAt: true },
+        },
+      },
       orderBy: { createdAt: 'desc' },
     });
+
+    return posts.map(({ reads, ...post }) => ({
+      ...post,
+      isRead: reads.length > 0,
+    }));
   }
 
-  async findOne(id: number) {
+  async findOne(userId: string, id: number) {
     const post = await this.db.post.findFirst({
       where: { id, deleted: false },
       select: POST_SELECT,
     });
     if (!post) throw new NotFoundException('Post introuvable');
-    return post;
+
+    // Marque comme lu de façon non bloquante (upsert sans attendre l'erreur)
+    await this.db.postRead.upsert({
+      where: { postId_userId: { postId: id, userId } },
+      create: { postId: id, userId },
+      update: {},
+    });
+
+    return { ...post, isRead: true };
   }
 
   async remove(userId: string, id: number): Promise<void> {

@@ -186,6 +186,7 @@ model User {
   notificationsReceived     Notification[]   @relation("NotificationRecipient")
   expoPushTokens            ExpoPushToken[]
   posts                     Post[]           @relation("PostAuthor")
+  postReads                 PostRead[]
 
   @@map("users")
 }
@@ -670,8 +671,21 @@ model Post {
   createdAt  DateTime       @default(now()) @map("created_at")
   updatedAt  DateTime       @updatedAt @map("updated_at")
 
-  author  User     @relation("PostAuthor", fields: [authorId], references: [id])
-  company Company? @relation(fields: [companyId], references: [id])
+  author  User      @relation("PostAuthor", fields: [authorId], references: [id])
+  company Company?  @relation(fields: [companyId], references: [id])
+  reads   PostRead[]
 
   @@map("posts")
+}
+
+model PostRead {
+  postId Int    @map("post_id")
+  userId String @map("user_id")
+  readAt DateTime @default(now()) @map("read_at")
+
+  post Post @relation(fields: [postId], references: [id])
+  user User @relation(fields: [userId], references: [id])
+
+  @@id([postId, userId])
+  @@map("post_reads")
 }
