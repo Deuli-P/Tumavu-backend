@@ -85,6 +85,12 @@ export class JobOfferController {
     return this.jobOfferService.getMyApplications(user.userId, status);
   }
 
+  // Candidatures du travailleur connecté (worker-side)
+  @Get('worker/applications')
+  getWorkerApplications(@CurrentUser() user: AuthenticatedRequestUser) {
+    return this.jobOfferService.getWorkerApplications(user.userId);
+  }
+
   @Get(':id')
   findOne(@Param('id', ParseIntPipe) id: number) {
     return this.jobOfferService.findOne(id);

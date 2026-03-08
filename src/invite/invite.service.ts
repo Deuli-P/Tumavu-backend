@@ -1,13 +1,76 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { DatabaseService } from '../database/database.service';
 import { NotificationService } from '../notification/notification.service';
+import { MailService } from '../mail/mail.service';
+import { CreateInviteDto } from './dto/create-invite.dto';
+
+const INVITE_TTL_DAYS = 7;
 
 @Injectable()
 export class InviteService {
   constructor(
     private readonly databaseService: DatabaseService,
     private readonly notificationService: NotificationService,
+    private readonly mailService: MailService,
   ) {}
+
+  async create(managerId: string, dto: CreateInviteDto) {
+    // Vérifier que le manager est propriétaire d'une company liée à l'offre
+    const offer = await this.databaseService.jobOffer.findFirst({
+      where: { id: dto.offerId, deleted: false },
+      select: {
+        id: true,
+        title: true,
+        company: { select: { id: true, name: true, ownerId: true } },
+      },
+    });
+
+    if (!offer) throw new NotFoundException('Offre introuvable');
+    if (offer.company.ownerId !== managerId) throw new ForbiddenException('Accès refusé');
+
+    // Annuler les invitations PENDING existantes pour ce couple email/offre
+    await this.databaseService.invitation.updateMany({
+      where: { email: dto.email, offerId: dto.offerId, status: 'PENDING', deleted: false },
+      data: { status: 'CANCELLED' },
+    });
+
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + INVITE_TTL_DAYS);
+
+    const invitation = await this.databaseService.invitation.create({
+      data: {
+        email: dto.email,
+        offerId: dto.offerId,
+        invitedBy: managerId,
+        expiresAt,
+      },
+      select: {
+        id: true,
+        token: true,
+        email: true,
+        expiresAt: true,
+      },
+    });
+
+    // Récupérer les infos du manager pour l'email
+    const manager = await this.databaseService.user.findUnique({
+      where: { id: managerId },
+      select: { firstName: true, lastName: true },
+    });
+
+    // Envoi de l'email (non bloquant en cas d'échec)
+    await this.mailService.sendInvitation({
+      to: dto.email,
+      inviterFirstName: manager?.firstName ?? '',
+      inviterLastName: manager?.lastName ?? '',
+      companyName: offer.company.name,
+      jobTitle: offer.title,
+      token: invitation.token,
+      expiresAt,
+    });
+
+    return invitation;
+  }
 
   async getByToken(token: string) {
     const invitation = await this.databaseService.invitation.findFirst({
@@ -17,7 +80,14 @@ export class InviteService {
         email: true,
         status: true,
         expiresAt: true,
-        offer: { select: { id: true, title: true, contractType: true } },
+        offer: {
+          select: {
+            id: true,
+            title: true,
+            contractType: true,
+            company: { select: { name: true } },
+          },
+        },
         inviter: { select: { firstName: true, lastName: true } },
       },
     });

@@ -459,6 +459,28 @@ export class JobOfferService {
     });
   }
 
+  // Candidatures du travailleur connecté (vue worker)
+  async getWorkerApplications(userId: string) {
+    return this.databaseService.applicationJob.findMany({
+      where: { userId, deleted: false },
+      select: {
+        id: true,
+        status: true,
+        createdAt: true,
+        offer: {
+          select: {
+            id: true,
+            title: true,
+            contractType: true,
+            status: true,
+            company: { select: { name: true } },
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
   // ─── Admin ────────────────────────────────────────────────────────────────
 
   async listAdmin(dto: ListJobOfferAdminDto = {}) {
