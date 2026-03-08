@@ -11,7 +11,7 @@ export class KeepaliveService {
   @Cron(CronExpression.EVERY_DAY_AT_8AM)
   async ping() {
     try {
-      await this.db.$queryRaw`SELECT * FROM new_day LIMIT 1;`;
+      await this.db.$queryRaw`SELECT 1 FROM public.new_day LIMIT 1`;
       this.logger.log('Supabase keepalive ping OK');
     } catch (err) {
       this.logger.error('Supabase keepalive ping FAILED', err);

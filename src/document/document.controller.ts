@@ -6,7 +6,6 @@ import {
   Param,
   ParseIntPipe,
   Post,
-  Put,
   UploadedFile,
   UseGuards,
   UseInterceptors,
@@ -57,18 +56,6 @@ export class DocumentController {
     @Param('id', ParseIntPipe) id: number,
   ) {
     return this.documentService.findOne(user.userId, id);
-  }
-
-  // Remplace l'ancien CV (soft delete) et crée le nouveau.
-  @Put(':id')
-  @UseInterceptors(pdfInterceptor)
-  replace(
-    @CurrentUser() user: AuthenticatedRequestUser,
-    @Param('id', ParseIntPipe) id: number,
-    @UploadedFile() file?: Express.Multer.File,
-  ) {
-    if (!file) throw new BadRequestException('Fichier PDF requis');
-    return this.documentService.replace(user.userId, id, file);
   }
 
   @Delete(':id')

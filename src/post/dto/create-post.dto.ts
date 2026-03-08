@@ -12,10 +12,6 @@ export class CreatePostDto {
 
   @IsOptional()
   @IsUrl()
-  imageUrl?: string;
-
-  @IsOptional()
-  @IsUrl()
   link?: string;
 
   @IsOptional()
