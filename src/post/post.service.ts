@@ -133,6 +133,32 @@ export class PostService {
     }));
   }
 
+  // Posts COMPANY des entreprises où le worker est employé (mode employé mobile)
+  async getCompanyFeed(userId: string) {
+    const userJobs = await this.db.userJob.findMany({
+      where: { userId, deleted: false, status: 'ACTIVE' },
+      select: { offer: { select: { companyId: true } } },
+    });
+
+    const companyIds = [...new Set(userJobs.map((uj) => uj.offer.companyId))];
+    if (companyIds.length === 0) return [];
+
+    return this.db.post.findMany({
+      where: {
+        deleted: false,
+        visibility: 'COMPANY',
+        companyId: { in: companyIds },
+      },
+      select: {
+        ...POST_SELECT,
+        reads: { where: { userId }, select: { readAt: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+    }).then((posts) =>
+      posts.map(({ reads, ...post }) => ({ ...post, isRead: reads.length > 0 })),
+    );
+  }
+
   async findOne(userId: string, id: number) {
     const post = await this.db.post.findFirst({
       where: { id, deleted: false },

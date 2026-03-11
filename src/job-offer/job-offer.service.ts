@@ -459,6 +459,32 @@ export class JobOfferService {
     });
   }
 
+  // Missions actives du travailleur (UserJobs ACTIVE)
+  async getWorkerJobs(userId: string) {
+    return this.databaseService.userJob.findMany({
+      where: { userId, deleted: false, status: 'ACTIVE' },
+      select: {
+        id: true,
+        startDate: true,
+        endDate: true,
+        createdAt: true,
+        offer: {
+          select: {
+            id: true,
+            title: true,
+            contractType: true,
+            startDate: true,
+            endDate: true,
+            hoursPerWeek: true,
+            schedule: true,
+            company: { select: { id: true, name: true } },
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
   // Candidatures du travailleur connecté (vue worker)
   async getWorkerApplications(userId: string) {
     return this.databaseService.applicationJob.findMany({

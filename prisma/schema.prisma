@@ -187,6 +187,7 @@ model User {
   expoPushTokens            ExpoPushToken[]
   posts                     Post[]           @relation("PostAuthor")
   postReads                 PostRead[]
+  createdTasks              Task[]           @relation("TaskCreator")
 
   @@map("users")
 }
@@ -218,6 +219,7 @@ model Company {
   companyBenefits CompanyBenefit[]
   benefitCatalog  Benefit[]
   posts           Post[]
+  tasks           Task[]
 
   @@map("companies")
 }
@@ -676,6 +678,32 @@ model Post {
   reads   PostRead[]
 
   @@map("posts")
+}
+
+// ─── Tasks ────────────────────────────────────────────────────────────────────
+
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+model Task {
+  id          Int          @id @default(autoincrement())
+  companyId   String       @map("company_id")
+  createdBy   String       @map("created_by")
+  title       String
+  description String?
+  priority    TaskPriority @default(MEDIUM)
+  dueDate     DateTime?    @map("due_date")
+  done        Boolean      @default(false)
+  deleted     Boolean      @default(false)
+  createdAt   DateTime     @default(now()) @map("created_at")
+
+  company Company @relation(fields: [companyId], references: [id])
+  creator User    @relation("TaskCreator", fields: [createdBy], references: [id])
+
+  @@map("tasks")
 }
 
 model PostRead {

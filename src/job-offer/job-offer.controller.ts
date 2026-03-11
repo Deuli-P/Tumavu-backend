@@ -91,6 +91,12 @@ export class JobOfferController {
     return this.jobOfferService.getWorkerApplications(user.userId);
   }
 
+  // Missions actives du travailleur
+  @Get('worker/jobs')
+  getWorkerJobs(@CurrentUser() user: AuthenticatedRequestUser) {
+    return this.jobOfferService.getWorkerJobs(user.userId);
+  }
+
   @Get(':id')
   findOne(@Param('id', ParseIntPipe) id: number) {
     return this.jobOfferService.findOne(id);

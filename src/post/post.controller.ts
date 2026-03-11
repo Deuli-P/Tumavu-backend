@@ -59,6 +59,11 @@ export class PostController {
     return this.postService.getFeed(user.userId);
   }
 
+  @Get('company-feed')
+  getCompanyFeed(@CurrentUser() user: AuthenticatedRequestUser) {
+    return this.postService.getCompanyFeed(user.userId);
+  }
+
   @Get(':id')
   findOne(@CurrentUser() user: AuthenticatedRequestUser, @Param('id', ParseIntPipe) id: number) {
     return this.postService.findOne(user.userId, id);
