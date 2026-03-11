@@ -201,6 +201,74 @@ export class JobOfferService {
     });
   }
 
+  async browse(userId: string, filters: { countryId?: number; tagId?: number } = {}) {
+    const offers = await this.databaseService.jobOffer.findMany({
+      where: {
+        deleted: false,
+        status: JobOfferStatus.PUBLISHED,
+        ...(filters.countryId
+          ? { company: { address: { countryId: filters.countryId } } }
+          : {}),
+        ...(filters.tagId
+          ? { job: { tags: { some: { tagId: filters.tagId, deleted: false } } } }
+          : {}),
+      },
+      select: {
+        id: true,
+        title: true,
+        description: true,
+        contractType: true,
+        startDate: true,
+        endDate: true,
+        duration: true,
+        hoursPerWeek: true,
+        salaryType: true,
+        salaryMin: true,
+        salaryMax: true,
+        currency: true,
+        housingProvided: true,
+        mealsProvided: true,
+        transportHelp: true,
+        applicationDeadline: true,
+        createdAt: true,
+        applications: {
+          where: { userId, deleted: false },
+          select: { id: true },
+          take: 1,
+        },
+        job: {
+          select: {
+            title: true,
+            experienceLevel: true,
+            season: true,
+            category: { select: { name: true } },
+            tags: {
+              where: { deleted: false },
+              select: { tag: { select: { id: true, name: true } } },
+            },
+          },
+        },
+        company: {
+          select: {
+            name: true,
+            address: {
+              select: {
+                locality: true,
+                country: { select: { id: true, name: true, code: true } },
+              },
+            },
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return offers.map(({ applications, ...offer }) => ({
+      ...offer,
+      hasApplied: applications.length > 0,
+    }));
+  }
+
   async findOne(offerId: number) {
     const offer = await this.databaseService.jobOffer.findFirst({
       where: { id: offerId, deleted: false },
@@ -384,6 +452,54 @@ export class JobOfferService {
             id: true,
             title: true,
             job: { select: { id: true, title: true } },
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  // Missions actives du travailleur (UserJobs ACTIVE)
+  async getWorkerJobs(userId: string) {
+    return this.databaseService.userJob.findMany({
+      where: { userId, deleted: false, status: 'ACTIVE' },
+      select: {
+        id: true,
+        startDate: true,
+        endDate: true,
+        createdAt: true,
+        offer: {
+          select: {
+            id: true,
+            title: true,
+            contractType: true,
+            startDate: true,
+            endDate: true,
+            hoursPerWeek: true,
+            schedule: true,
+            company: { select: { id: true, name: true } },
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  // Candidatures du travailleur connecté (vue worker)
+  async getWorkerApplications(userId: string) {
+    return this.databaseService.applicationJob.findMany({
+      where: { userId, deleted: false },
+      select: {
+        id: true,
+        status: true,
+        createdAt: true,
+        offer: {
+          select: {
+            id: true,
+            title: true,
+            contractType: true,
+            status: true,
+            company: { select: { name: true } },
           },
         },
       },

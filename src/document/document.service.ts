@@ -21,34 +21,45 @@ export class DocumentService {
     private readonly storageService: SupabaseStorageService,
   ) {}
 
+  // Upload d'un nouveau CV : archive l'ACTIVE existant (sans le supprimer — conservé
+  // pour les candidatures passées), puis crée le nouveau comme ACTIVE.
   async create(userId: string, file: Express.Multer.File) {
     this.validatePdf(file);
 
-    const storagePath = `${userId}/cv/cv_${Date.now()}.pdf`;
+    const filename = file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_');
+    const storagePath = `${userId}/cv/${Date.now()}_${filename}`;
 
     await this.storageService.uploadFile(storagePath, file.buffer, {
       contentType: 'application/pdf',
-      upsert: true,
+      upsert: false,
     });
 
-    return this.databaseService.document.create({
-      data: {
-        slug: storagePath,
-        status: DocumentStatus.ACTIVE,
-        userId,
-      },
+    // Archive tous les CV ACTIVE existants de l'utilisateur (sans deleted: true).
+    await this.databaseService.document.updateMany({
+      where: { userId, status: DocumentStatus.ACTIVE, deleted: false },
+      data: { status: DocumentStatus.ARCHIVED },
+    });
+
+    const doc = await this.databaseService.document.create({
+      data: { slug: storagePath, status: DocumentStatus.ACTIVE, userId },
       select: DOCUMENT_SELECT,
     });
+
+    return { ...doc, url: this.storageService.getPublicUrl(storagePath) };
   }
 
-  findAll(userId: string) {
-    return this.databaseService.document.findMany({
-      where: { userId, deleted: false },
+  // Retourne uniquement le CV actif de l'utilisateur (0 ou 1 résultat).
+  async findAll(userId: string) {
+    const docs = await this.databaseService.document.findMany({
+      where: { userId, status: DocumentStatus.ACTIVE, deleted: false },
       select: DOCUMENT_SELECT,
       orderBy: { createdAt: 'desc' },
     });
+
+    return docs.map((d) => ({ ...d, url: this.storageService.getPublicUrl(d.slug) }));
   }
 
+  // Utilisé par le service candidature pour résoudre l'URL du CV joint.
   async findOne(userId: string, id: number) {
     const doc = await this.databaseService.document.findFirst({
       where: { id, userId, deleted: false },
@@ -56,45 +67,16 @@ export class DocumentService {
     });
 
     if (!doc) throw new NotFoundException('Document introuvable');
-    return doc;
+    return { ...doc, url: this.storageService.getPublicUrl(doc.slug) };
   }
 
-  async replace(userId: string, id: number, file: Express.Multer.File) {
-    await this.checkOwnership(userId, id);
-    this.validatePdf(file);
-
-    const storagePath = `${userId}/cv/cv_${Date.now()}.pdf`;
-
-    await this.storageService.uploadFile(storagePath, file.buffer, {
-      contentType: 'application/pdf',
-      upsert: true,
-    });
-
-    // Archive l'ancien + crée le nouveau dans une transaction.
-    const [, created] = await this.databaseService.$transaction([
-      this.databaseService.document.update({
-        where: { id },
-        data: { deleted: true, status: DocumentStatus.ARCHIVED },
-      }),
-      this.databaseService.document.create({
-        data: {
-          slug: storagePath,
-          status: DocumentStatus.ACTIVE,
-          userId,
-        },
-        select: DOCUMENT_SELECT,
-      }),
-    ]);
-
-    return created;
-  }
-
+  // Archive le CV (sans suppression) — il reste accessible pour les candidatures passées.
   async remove(userId: string, id: number): Promise<void> {
     await this.checkOwnership(userId, id);
 
     await this.databaseService.document.update({
       where: { id },
-      data: { deleted: true, status: DocumentStatus.ARCHIVED },
+      data: { status: DocumentStatus.ARCHIVED },
     });
   }
 
@@ -112,7 +94,7 @@ export class DocumentService {
 
   private async checkOwnership(userId: string, id: number): Promise<void> {
     const doc = await this.databaseService.document.findFirst({
-      where: { id, deleted: false },
+      where: { id, deleted: false, userId },
       select: { userId: true },
     });
 

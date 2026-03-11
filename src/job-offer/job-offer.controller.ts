@@ -45,6 +45,18 @@ export class JobOfferController {
     return this.jobOfferService.findAll(user.userId, status);
   }
 
+  @Get('browse')
+  browse(
+    @CurrentUser() user: AuthenticatedRequestUser,
+    @Query('countryId') countryId?: string,
+    @Query('tagId') tagId?: string,
+  ) {
+    return this.jobOfferService.browse(user.userId, {
+      countryId: countryId ? Number(countryId) : undefined,
+      tagId: tagId ? Number(tagId) : undefined,
+    });
+  }
+
   @Get('admin')
   @UseGuards(AdminGuard)
   listAdmin(@Query() dto: ListJobOfferAdminDto) {
@@ -71,6 +83,18 @@ export class JobOfferController {
     @Query('status') status?: ApplicationJobStatus,
   ) {
     return this.jobOfferService.getMyApplications(user.userId, status);
+  }
+
+  // Candidatures du travailleur connecté (worker-side)
+  @Get('worker/applications')
+  getWorkerApplications(@CurrentUser() user: AuthenticatedRequestUser) {
+    return this.jobOfferService.getWorkerApplications(user.userId);
+  }
+
+  // Missions actives du travailleur
+  @Get('worker/jobs')
+  getWorkerJobs(@CurrentUser() user: AuthenticatedRequestUser) {
+    return this.jobOfferService.getWorkerJobs(user.userId);
   }
 
   @Get(':id')

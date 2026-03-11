@@ -86,6 +86,12 @@ enum ApplicationJobStatus {
   PHONE
 }
 
+enum AnnouncementStatus {
+  DRAFT
+  PUBLISHED
+  DELETED
+}
+
 enum UserJobStatus {
   ACTIVE
   COMPLETED
@@ -179,6 +185,9 @@ model User {
   invitationsReceived       Invitation[]     @relation("InvitationsReceived")
   notificationsReceived     Notification[]   @relation("NotificationRecipient")
   expoPushTokens            ExpoPushToken[]
+  posts                     Post[]           @relation("PostAuthor")
+  postReads                 PostRead[]
+  createdTasks              Task[]           @relation("TaskCreator")
 
   @@map("users")
 }
@@ -209,6 +218,8 @@ model Company {
   defaultOptions CompanyDefaultOptions?
   companyBenefits CompanyBenefit[]
   benefitCatalog  Benefit[]
+  posts           Post[]
+  tasks           Task[]
 
   @@map("companies")
 }
@@ -405,16 +416,43 @@ model ApplicationJob {
 // ─── Announcements ────────────────────────────────────────────────────────────
 
 model Announcement {
-  id          Int      @id @default(autoincrement())
+  id          Int                @id @default(autoincrement())
   title       String
   description String?
-  createdBy   String   @map("created_by")
-  deleted     Boolean  @default(false)
-  createdAt   DateTime @default(now())
+  status      AnnouncementStatus @default(DRAFT)
+  publishedAt DateTime?          @map("published_at")
+  createdBy   String             @map("created_by")
+  deleted     Boolean            @default(false)
+  createdAt   DateTime           @default(now()) @map("created_at")
 
-  creator User @relation("AnnouncementCreator", fields: [createdBy], references: [id])
+  creator     User                     @relation("AnnouncementCreator", fields: [createdBy], references: [id])
+  attachments AnnouncementAttachment[]
 
   @@map("annoucements")
+}
+
+model Attachment {
+  id        Int      @id @default(autoincrement())
+  filename  String
+  url       String
+  mimeType  String?  @map("mime_type")
+  size      Int?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  announcements AnnouncementAttachment[]
+
+  @@map("attachments")
+}
+
+model AnnouncementAttachment {
+  announcementId Int @map("announcement_id")
+  attachmentId   Int @map("attachment_id")
+
+  announcement Announcement @relation(fields: [announcementId], references: [id])
+  attachment   Attachment   @relation(fields: [attachmentId], references: [id])
+
+  @@id([announcementId, attachmentId])
+  @@map("announcement_attachments")
 }
 
 // ─── Benefits ─────────────────────────────────────────────────────────────────
@@ -613,4 +651,69 @@ model Language {
   users User[]
 
   @@map("languages")
+}
+
+// ─── Posts ────────────────────────────────────────────────────────────────────
+
+enum PostVisibility {
+  PUBLIC   // visible par tous les utilisateurs connectés
+  COMPANY  // visible uniquement par les workers de la company de l'auteur
+}
+
+model Post {
+  id         Int            @id @default(autoincrement())
+  authorId   String         @map("author_id")
+  companyId  String?        @map("company_id")
+  title      String
+  content    String?
+  imageUrls  String[]       @map("image_urls")
+  link       String?
+  visibility PostVisibility @default(PUBLIC)
+  deleted    Boolean        @default(false)
+  createdAt  DateTime       @default(now()) @map("created_at")
+  updatedAt  DateTime       @updatedAt @map("updated_at")
+
+  author  User      @relation("PostAuthor", fields: [authorId], references: [id])
+  company Company?  @relation(fields: [companyId], references: [id])
+  reads   PostRead[]
+
+  @@map("posts")
+}
+
+// ─── Tasks ────────────────────────────────────────────────────────────────────
+
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+model Task {
+  id          Int          @id @default(autoincrement())
+  companyId   String       @map("company_id")
+  createdBy   String       @map("created_by")
+  title       String
+  description String?
+  priority    TaskPriority @default(MEDIUM)
+  dueDate     DateTime?    @map("due_date")
+  done        Boolean      @default(false)
+  deleted     Boolean      @default(false)
+  createdAt   DateTime     @default(now()) @map("created_at")
+
+  company Company @relation(fields: [companyId], references: [id])
+  creator User    @relation("TaskCreator", fields: [createdBy], references: [id])
+
+  @@map("tasks")
+}
+
+model PostRead {
+  postId Int    @map("post_id")
+  userId String @map("user_id")
+  readAt DateTime @default(now()) @map("read_at")
+
+  post Post @relation(fields: [postId], references: [id])
+  user User @relation(fields: [userId], references: [id])
+
+  @@id([postId, userId])
+  @@map("post_reads")
 }

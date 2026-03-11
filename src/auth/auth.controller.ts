@@ -37,9 +37,10 @@ export class AuthController {
   async register(
     @Body() dto: RegisterDto,
     @Res({ passthrough: true }) res: Response,
-  ): Promise<void> {
-    const  token  = await this.authService.register(dto);
-    return this.setCookie(res, token);
+  ): Promise<{ token: string }> {
+    const token = await this.authService.register(dto);
+    this.setCookie(res, token);
+    return { token };
   }
 
   @UseGuards(GuestOnlyGuard)
@@ -47,10 +48,10 @@ export class AuthController {
   async login(
     @Body() dto: LoginDto,
     @Res({ passthrough: true }) res: Response,
-  ): Promise<void> {
+  ): Promise<{ token: string }> {
     const token = await this.authService.login(dto);
-    return this.setCookie(res, token);
-    ;
+    this.setCookie(res, token);
+    return { token };
   }
 
   @UseGuards(GuestOnlyGuard)
@@ -94,9 +95,15 @@ export class AuthController {
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ): Promise<void> {
-    const token = (req.cookies?.[COOKIE_NAME] ?? req.cookies?.[ADMIN_COOKIE_NAME]) as string | undefined;
+    const cookieToken = (req.cookies?.[COOKIE_NAME] ?? req.cookies?.[ADMIN_COOKIE_NAME]) as string | undefined;
+    const authHeader = req.headers?.authorization as string | undefined;
+    const bearerToken = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : undefined;
+
     res.clearCookie(COOKIE_NAME, { path: '/' });
     res.clearCookie(ADMIN_COOKIE_NAME, { path: '/' });
+
+    // Delete the session for whichever token authenticated this request
+    const token = cookieToken ?? bearerToken;
     if (token) {
       await this.authService.logout(token);
     }

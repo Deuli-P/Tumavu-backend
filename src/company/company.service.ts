@@ -43,6 +43,7 @@ export type CompanyDetail = {
   jobs: {
     id: number;
     title: string;
+    category: { id: number; name: string } | null;
     tags: { id: number; name: string }[];
     _count: { jobOffers: number };
   }[];
@@ -276,6 +277,7 @@ export class CompanyService {
             select: {
               id: true,
               title: true,
+              category: { select: { id: true, name: true } },
               tags: {
                 where: { deleted: false },
                 select: { tag: { select: { id: true, name: true } } },
@@ -328,6 +330,7 @@ export class CompanyService {
       jobs: company.jobs.map((j) => ({
         id: j.id,
         title: j.title,
+        category: j.category,
         tags: j.tags.map((t) => t.tag),
         _count: j._count,
       })),

@@ -16,7 +16,10 @@ export class AuthenticatedGuard implements CanActivate {
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest();
 
-    const token = await this.resolveToken(request.cookies ?? {});
+    const token = await this.resolveToken(
+      request.cookies ?? {},
+      request.headers?.authorization,
+    );
 
     if (!token) {
       throw new UnauthorizedException('Token manquant');
@@ -72,12 +75,19 @@ export class AuthenticatedGuard implements CanActivate {
   // Résout le bon token parmi les cookies présents.
   // Stratégie : utilise le token qui a une session valide en DB.
   // Si les deux sont valides, préfère auth_token_admin (session admin prioritaire).
-  private async resolveToken(cookies: Record<string, string>): Promise<string | null> {
+  private async resolveToken(
+    cookies: Record<string, string>,
+    authHeader?: string,
+  ): Promise<string | null> {
+    // Bearer token (mobile / API clients)
+    if (authHeader?.startsWith('Bearer ')) {
+      return authHeader.slice(7);
+    }
+
     const adminToken = cookies[ADMIN_COOKIE_NAME];
     const userToken = cookies[COOKIE_NAME];
 
     if (adminToken && userToken) {
-      // Les deux présents — vérifier lequel a une session DB valide
       const adminValid = await this.hasValidSession(adminToken);
       if (adminValid) return adminToken;
       return userToken;
